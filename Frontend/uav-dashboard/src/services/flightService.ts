@@ -1,0 +1,48 @@
+import type { FlightAnalysis, FlightLog } from '../types/flight'
+
+const DEFAULT_API_BASE_URL = 'http://127.0.0.1:8000'
+
+export const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL?.trim() || DEFAULT_API_BASE_URL
+
+export const DEFAULT_FLIGHT_ID =
+  import.meta.env.VITE_DEFAULT_FLIGHT_ID?.trim() ||
+  'a2ed9650-0638-4597-8374-995d8e6660a4'
+
+export type UploadFlightResponse = {
+  id: string
+}
+
+async function fetchJson<T>(path: string): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`)
+
+  if (!response.ok) {
+    throw new Error(`Request failed: ${response.status}`)
+  }
+
+  return (await response.json()) as T
+}
+
+export function getFlight(flightId: string): Promise<FlightLog> {
+  return fetchJson<FlightLog>(`/api/flights/${flightId}`)
+}
+
+export function getFlightAnalysis(flightId: string): Promise<FlightAnalysis> {
+  return fetchJson<FlightAnalysis>(`/api/flights/${flightId}/analysis`)
+}
+
+export async function uploadFlight(file: File): Promise<UploadFlightResponse> {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const response = await fetch(`${API_BASE_URL}/api/upload`, {
+    method: 'POST',
+    body: formData,
+  })
+
+  if (!response.ok) {
+    throw new Error(`Upload failed: ${response.status}`)
+  }
+
+  return (await response.json()) as UploadFlightResponse
+}

@@ -1,0 +1,317 @@
+{
+  "meta": {
+    "firmware": "TraceAir Flight Stack",
+    "version": "0.9.3",
+    "git_hash": 8451293,
+    "total_messages": 12480
+  },
+  "origin": {
+    "lat": 35.11923,
+    "lng": -106.61482,
+    "alt": 1612.4
+  },
+  "sensors": {
+    "gps": {
+      "rate_hz": 10,
+      "n_samples": 12,
+      "n_sats": 14,
+      "units": {
+        "lat": "deg",
+        "lng": "deg",
+        "alt_msl": "m",
+        "speed": "m/s"
+      }
+    },
+    "imu": {
+      "rate_hz": 100,
+      "n_samples": 12,
+      "units": {
+        "acc": "m/s^2",
+        "gyr": "deg/s"
+      }
+    },
+    "baro": {
+      "rate_hz": 25,
+      "n_samples": 12,
+      "units": {
+        "pressure": "Pa",
+        "altitude": "m"
+      }
+    }
+  },
+  "metrics": {
+    "max_horizontal_speed_ms": 48.6,
+    "max_vertical_speed_ms": 61.4,
+    "max_acceleration_ms2": 28.7,
+    "max_acceleration_g": 2.93,
+    "max_altitude_gain_m": 812.1,
+    "total_distance_m": 1946.8,
+    "flight_duration_s": 118.6,
+    "apogee_msl_m": 2424.5
+  },
+  "trajectory": {
+    "gps": [
+      {
+        "time_s": 0,
+        "lat": 35.11923,
+        "lng": -106.61482,
+        "alt_msl": 1612.4,
+        "enu": { "e": 0, "n": 0, "u": 0 },
+        "h_speed": 0,
+        "v_speed": 0,
+        "seg_dist": 0,
+        "n_sats": 13
+      },
+      {
+        "time_s": 10,
+        "lat": 35.11931,
+        "lng": -106.61468,
+        "alt_msl": 1698.2,
+        "enu": { "e": 12.1, "n": 8.9, "u": 85.8 },
+        "h_speed": 14.2,
+        "v_speed": 19.4,
+        "seg_dist": 15.3,
+        "n_sats": 14
+      },
+      {
+        "time_s": 20,
+        "lat": 35.11945,
+        "lng": -106.61441,
+        "alt_msl": 1841.7,
+        "enu": { "e": 37.5, "n": 24.8, "u": 229.3 },
+        "h_speed": 23.6,
+        "v_speed": 31.2,
+        "seg_dist": 33.4,
+        "n_sats": 14
+      },
+      {
+        "time_s": 30,
+        "lat": 35.11966,
+        "lng": -106.6141,
+        "alt_msl": 2018.6,
+        "enu": { "e": 66.4, "n": 48.2, "u": 406.2 },
+        "h_speed": 34.8,
+        "v_speed": 44.5,
+        "seg_dist": 40.6,
+        "n_sats": 15
+      },
+      {
+        "time_s": 40,
+        "lat": 35.11988,
+        "lng": -106.61385,
+        "alt_msl": 2237.3,
+        "enu": { "e": 95.1, "n": 73.4, "u": 624.9 },
+        "h_speed": 48.6,
+        "v_speed": 61.4,
+        "seg_dist": 44.1,
+        "n_sats": 15
+      },
+      {
+        "time_s": 50,
+        "lat": 35.12001,
+        "lng": -106.61371,
+        "alt_msl": 2424.5,
+        "enu": { "e": 110.6, "n": 88.3, "u": 812.1 },
+        "h_speed": 42.9,
+        "v_speed": 21.7,
+        "seg_dist": 21.5,
+        "n_sats": 15
+      },
+      {
+        "time_s": 60,
+        "lat": 35.12008,
+        "lng": -106.61363,
+        "alt_msl": 2379.4,
+        "enu": { "e": 119.8, "n": 97.5, "u": 767 },
+        "h_speed": 27.8,
+        "v_speed": -15.3,
+        "seg_dist": 13.1,
+        "n_sats": 14
+      },
+      {
+        "time_s": 75,
+        "lat": 35.12019,
+        "lng": -106.61341,
+        "alt_msl": 2203.2,
+        "enu": { "e": 142.4, "n": 109.6, "u": 590.8 },
+        "h_speed": 19.6,
+        "v_speed": -27.4,
+        "seg_dist": 25.7,
+        "n_sats": 14
+      },
+      {
+        "time_s": 90,
+        "lat": 35.12029,
+        "lng": -106.61312,
+        "alt_msl": 1971.1,
+        "enu": { "e": 171.8, "n": 121.7, "u": 358.7 },
+        "h_speed": 11.8,
+        "v_speed": -34.8,
+        "seg_dist": 31.8,
+        "n_sats": 13
+      },
+      {
+        "time_s": 105,
+        "lat": 35.12034,
+        "lng": -106.61294,
+        "alt_msl": 1758.8,
+        "enu": { "e": 189.4, "n": 126.5, "u": 146.4 },
+        "h_speed": 6.3,
+        "v_speed": -20.7,
+        "seg_dist": 18.2,
+        "n_sats": 13
+      },
+      {
+        "time_s": 118.6,
+        "lat": 35.12036,
+        "lng": -106.61289,
+        "alt_msl": 1620.7,
+        "enu": { "e": 194.6, "n": 128.1, "u": 8.3 },
+        "h_speed": 1.1,
+        "v_speed": -3.2,
+        "seg_dist": 5.6,
+        "n_sats": 12
+      }
+    ],
+    "sim": [
+      {
+        "time_s": 0,
+        "enu": { "e": 0, "n": 0, "u": 0 },
+        "alt_msl": 1612.4,
+        "roll": 0,
+        "pitch": 0,
+        "yaw": 2,
+        "quat": [1, 0, 0, 0]
+      },
+      {
+        "time_s": 20,
+        "enu": { "e": 36.7, "n": 23.9, "u": 230.5 },
+        "alt_msl": 1842.9,
+        "roll": 4.2,
+        "pitch": 8.7,
+        "yaw": 11.6,
+        "quat": [0.989, 0.036, 0.079, 0.116]
+      },
+      {
+        "time_s": 40,
+        "enu": { "e": 94.2, "n": 72.8, "u": 626.4 },
+        "alt_msl": 2238.8,
+        "roll": 7.8,
+        "pitch": 12.4,
+        "yaw": 18.1,
+        "quat": [0.975, 0.062, 0.103, 0.177]
+      },
+      {
+        "time_s": 50,
+        "enu": { "e": 110.2, "n": 87.7, "u": 813.5 },
+        "alt_msl": 2425.9,
+        "roll": 5.1,
+        "pitch": 6.3,
+        "yaw": 22.4,
+        "quat": [0.977, 0.039, 0.055, 0.203]
+      },
+      {
+        "time_s": 75,
+        "enu": { "e": 141.7, "n": 109.2, "u": 591.2 },
+        "alt_msl": 2203.6,
+        "roll": -2.3,
+        "pitch": -4.1,
+        "yaw": 28.7,
+        "quat": [0.968, -0.012, -0.039, 0.245]
+      },
+      {
+        "time_s": 118.6,
+        "enu": { "e": 194.5, "n": 128, "u": 8.1 },
+        "alt_msl": 1620.5,
+        "roll": 0.4,
+        "pitch": -0.8,
+        "yaw": 31.2,
+        "quat": [0.963, 0.004, -0.009, 0.268]
+      }
+    ]
+  },
+  "imu": {
+    "raw_chart": [
+      { "time_s": 0, "acc_x": 0.1, "acc_y": -0.2, "acc_z": 9.8, "gyr_x": 0.2, "gyr_y": 0.4, "gyr_z": 0.3 },
+      { "time_s": 10, "acc_x": 1.9, "acc_y": 0.7, "acc_z": 12.4, "gyr_x": 2.1, "gyr_y": 1.6, "gyr_z": 1.1 },
+      { "time_s": 20, "acc_x": 3.7, "acc_y": 1.3, "acc_z": 15.8, "gyr_x": 3.2, "gyr_y": 2.7, "gyr_z": 1.8 },
+      { "time_s": 30, "acc_x": 6.8, "acc_y": 1.9, "acc_z": 20.6, "gyr_x": 4.8, "gyr_y": 3.5, "gyr_z": 2.4 },
+      { "time_s": 40, "acc_x": 8.2, "acc_y": 2.6, "acc_z": 28.7, "gyr_x": 6.1, "gyr_y": 4.1, "gyr_z": 3 },
+      { "time_s": 50, "acc_x": 5.4, "acc_y": 1.1, "acc_z": 16.4, "gyr_x": 3.3, "gyr_y": 2.4, "gyr_z": 2.1 },
+      { "time_s": 60, "acc_x": -1.8, "acc_y": -0.6, "acc_z": 7.5, "gyr_x": 1.2, "gyr_y": 1.1, "gyr_z": 1.6 },
+      { "time_s": 75, "acc_x": -3.4, "acc_y": -1.2, "acc_z": 5.8, "gyr_x": -0.8, "gyr_y": 0.3, "gyr_z": 1 },
+      { "time_s": 90, "acc_x": -2.6, "acc_y": -0.4, "acc_z": 7.1, "gyr_x": -1.4, "gyr_y": -0.2, "gyr_z": 0.6 },
+      { "time_s": 105, "acc_x": -0.8, "acc_y": 0.1, "acc_z": 8.4, "gyr_x": -0.6, "gyr_y": 0.1, "gyr_z": 0.4 },
+      { "time_s": 118.6, "acc_x": 0.2, "acc_y": -0.1, "acc_z": 9.7, "gyr_x": 0.1, "gyr_y": 0.2, "gyr_z": 0.1 }
+    ],
+    "integrated_velocity": [
+      { "time_s": 0, "vel_x": 0, "vel_y": 0, "vel_z": 0, "vel_total": 0, "acc_mag": 9.8 },
+      { "time_s": 10, "vel_x": 3.2, "vel_y": 0.9, "vel_z": 11.8, "vel_total": 12.3, "acc_mag": 12.6 },
+      { "time_s": 20, "vel_x": 7.9, "vel_y": 2.1, "vel_z": 24.6, "vel_total": 25.9, "acc_mag": 16.3 },
+      { "time_s": 30, "vel_x": 15.4, "vel_y": 4.1, "vel_z": 38.2, "vel_total": 41.4, "acc_mag": 21.8 },
+      { "time_s": 40, "vel_x": 24.7, "vel_y": 6.8, "vel_z": 56.4, "vel_total": 61.9, "acc_mag": 29.9 },
+      { "time_s": 50, "vel_x": 27.8, "vel_y": 7.1, "vel_z": 60.1, "vel_total": 66.6, "acc_mag": 17.3 },
+      { "time_s": 60, "vel_x": 22.3, "vel_y": 5.8, "vel_z": 43.7, "vel_total": 49.4, "acc_mag": 7.7 },
+      { "time_s": 75, "vel_x": 15.1, "vel_y": 4.7, "vel_z": 20.4, "vel_total": 25.8, "acc_mag": 6.8 },
+      { "time_s": 90, "vel_x": 8.2, "vel_y": 2.9, "vel_z": -3.8, "vel_total": 9.5, "acc_mag": 7.6 },
+      { "time_s": 105, "vel_x": 3.1, "vel_y": 1.2, "vel_z": -12.6, "vel_total": 13, "acc_mag": 8.4 },
+      { "time_s": 118.6, "vel_x": 0.4, "vel_y": 0.1, "vel_z": -1.4, "vel_total": 1.5, "acc_mag": 9.7 }
+    ]
+  },
+  "attitude": [
+    { "time_s": 0, "roll": 0, "pitch": 0, "yaw": 2, "des_roll": 0, "des_pitch": 0 },
+    { "time_s": 10, "roll": 1.2, "pitch": 3.5, "yaw": 6.4, "des_roll": 1, "des_pitch": 4 },
+    { "time_s": 20, "roll": 4.1, "pitch": 8.4, "yaw": 11.7, "des_roll": 4, "des_pitch": 8 },
+    { "time_s": 30, "roll": 6.5, "pitch": 11.6, "yaw": 15.2, "des_roll": 6, "des_pitch": 12 },
+    { "time_s": 40, "roll": 7.9, "pitch": 12.2, "yaw": 18.3, "des_roll": 8, "des_pitch": 12 },
+    { "time_s": 50, "roll": 5.4, "pitch": 6.7, "yaw": 22.1, "des_roll": 5, "des_pitch": 7 },
+    { "time_s": 60, "roll": 1.8, "pitch": 1.9, "yaw": 24.8, "des_roll": 2, "des_pitch": 2 },
+    { "time_s": 75, "roll": -2.1, "pitch": -4.6, "yaw": 28.5, "des_roll": -2, "des_pitch": -4 },
+    { "time_s": 90, "roll": -1.4, "pitch": -2.8, "yaw": 29.7, "des_roll": -1, "des_pitch": -3 },
+    { "time_s": 105, "roll": 0.6, "pitch": -1.1, "yaw": 30.4, "des_roll": 1, "des_pitch": -1 },
+    { "time_s": 118.6, "roll": 0.2, "pitch": -0.4, "yaw": 31.2, "des_roll": 0, "des_pitch": 0 }
+  ],
+  "pid": {
+    "roll": [
+      { "time_s": 0, "tar": 0, "act": 0, "err": 0, "p": 0, "i": 0, "d": 0 },
+      { "time_s": 40, "tar": 8, "act": 7.9, "err": 0.1, "p": 0.08, "i": 0.02, "d": -0.01 },
+      { "time_s": 118.6, "tar": 0, "act": 0.2, "err": -0.2, "p": -0.06, "i": 0.01, "d": 0 }
+    ],
+    "pitch": [
+      { "time_s": 0, "tar": 0, "act": 0, "err": 0, "p": 0, "i": 0, "d": 0 },
+      { "time_s": 40, "tar": 12, "act": 12.2, "err": -0.2, "p": -0.07, "i": 0.01, "d": 0.01 },
+      { "time_s": 118.6, "tar": 0, "act": -0.4, "err": 0.4, "p": 0.12, "i": 0.02, "d": -0.01 }
+    ],
+    "yaw": [
+      { "time_s": 0, "tar": 2, "act": 2, "err": 0, "p": 0, "i": 0, "d": 0 },
+      { "time_s": 40, "tar": 18, "act": 18.3, "err": -0.3, "p": -0.09, "i": 0.03, "d": 0.01 },
+      { "time_s": 118.6, "tar": 31, "act": 31.2, "err": -0.2, "p": -0.05, "i": 0.02, "d": 0 }
+    ]
+  },
+  "events": [
+    { "time_s": 0, "message": "Telemetry session armed" },
+    { "time_s": 12.3, "message": "Launch detect asserted" },
+    { "time_s": 49.8, "message": "Apogee prediction converged" },
+    { "time_s": 103.4, "message": "Descent rate stabilized" },
+    { "time_s": 118.6, "message": "Touchdown detected" }
+  ],
+  "stages": [
+    { "time_s": 0, "stage": 0, "stage_name": "Preflight", "prev_stage": null },
+    { "time_s": 12.3, "stage": 1, "stage_name": "Boost", "prev_stage": 0 },
+    { "time_s": 52.1, "stage": 2, "stage_name": "Coast", "prev_stage": 1 },
+    { "time_s": 84.7, "stage": 3, "stage_name": "Recovery", "prev_stage": 2 }
+  ],
+  "modes": [
+    { "time_s": 0, "mode_num": 0, "mode_name": "Standby" },
+    { "time_s": 11.5, "mode_num": 3, "mode_name": "Ascent Guidance" },
+    { "time_s": 55, "mode_num": 5, "mode_name": "Coast Hold" },
+    { "time_s": 86.2, "mode_num": 7, "mode_name": "Recovery Descent" }
+  ],
+  "parameters": {
+    "launch_detect_acc_ms2": 14.5,
+    "max_bank_deg": 18,
+    "altitude_filter_alpha": 0.24,
+    "recovery_deploy_alt_m": 320,
+    "yaw_damping_gain": 0.65
+  }
+}

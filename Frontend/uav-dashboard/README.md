@@ -1,0 +1,141 @@
+# TraceAir Frontend
+
+Frontend dashboard for UAV / rocket telemetry analysis.
+
+Built with:
+- React
+- TypeScript
+- Vite
+- Tailwind CSS
+- Recharts
+- Leaflet / React Leaflet
+
+## What It Does
+
+The app loads parsed flight telemetry from the backend and presents:
+- summary metrics
+- 3D viewer placeholder
+- velocity and altitude charts
+- mission stages and modes timeline
+- interactive world map with start and end markers
+- backend-generated markdown analysis
+- export to CSV, XLSX, and raw JSON
+- `.BIN` upload flow to create and open a new flight
+
+## Requirements
+
+You need:
+- Node.js 20+ recommended
+- npm 10+ recommended
+- the TraceAir backend running locally
+
+Backend default URL expected by the frontend:
+
+```text
+http://127.0.0.1:8000
+```
+
+## Environment
+
+Copy `.env.example` to `.env` if you want custom values.
+
+Available variables:
+
+```bash
+VITE_API_BASE_URL=http://127.0.0.1:8000
+VITE_DEFAULT_FLIGHT_ID=a2ed9650-0638-4597-8374-995d8e6660a4
+```
+
+## Install
+
+```bash
+npm install
+```
+
+## Run
+
+Development:
+
+```bash
+npm run dev
+```
+
+Production build:
+
+```bash
+npm run build
+```
+
+Lint:
+
+```bash
+npm run lint
+```
+
+Preview production build:
+
+```bash
+npm run preview
+```
+
+## Backend Integration
+
+The frontend currently uses these existing backend endpoints:
+
+- `POST /api/upload`
+- `GET /api/flights/{id}`
+- `GET /api/flights/{id}/analysis`
+
+No additional backend endpoints are required.
+
+## Main UI Areas
+
+- Header with branding, export, and upload
+- Summary cards
+- 3D viewer placeholder
+- Velocity chart
+- Stages and modes timeline
+- Interactive map
+- Altitude chart
+- Analysis summary
+
+## Export Formats
+
+The export menu supports:
+
+- `CSV`: flattened GPS trajectory telemetry
+- `XLSX`: spreadsheet export of trajectory telemetry
+- `Raw JSON`: full flight payload exactly as currently loaded
+
+## Project Structure
+
+```text
+src/
+  components/
+    ai/
+    charts/
+    common/
+    events/
+    layout/
+    summary/
+    viewer/
+  data/
+  pages/
+  services/
+  types/
+  utils/
+```
+
+## Notes
+
+- If the backend is unavailable, the dashboard falls back to local mock data.
+- Analysis markdown is rendered on the frontend without adding a heavy markdown dependency.
+- The interactive map uses OpenStreetMap and Esri satellite tiles.
+- The current bundle is relatively large because of `xlsx` and map dependencies.
+
+## Next Reasonable Improvements
+
+- lazy-load map and xlsx export logic
+- add click-outside close behavior for the export dropdown
+- add upload progress and success state
+- replace viewer placeholder with the real Three.js scene when ready
