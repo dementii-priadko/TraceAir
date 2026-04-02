@@ -91,15 +91,15 @@ function createFallbackGroundTexture(): THREE.CanvasTexture {
   const ctx = c.getContext('2d')
   if (ctx) {
     const g = ctx.createLinearGradient(0, 0, c.width, c.height)
-    g.addColorStop(0, '#0d1524'); g.addColorStop(0.5, '#102338'); g.addColorStop(1, '#08111c')
+    g.addColorStop(0, '#090a0c'); g.addColorStop(0.5, '#111316'); g.addColorStop(1, '#070809')
     ctx.fillStyle = g; ctx.fillRect(0, 0, c.width, c.height)
-    ctx.strokeStyle = 'rgba(148,163,184,0.14)'; ctx.lineWidth = 2
+    ctx.strokeStyle = 'rgba(201,184,154,0.08)'; ctx.lineWidth = 2
     for (let i = 0; i <= 16; i++) {
       const o = (c.width / 16) * i
       ctx.beginPath(); ctx.moveTo(o, 0); ctx.lineTo(o, c.height); ctx.stroke()
       ctx.beginPath(); ctx.moveTo(0, o); ctx.lineTo(c.width, o); ctx.stroke()
     }
-    ctx.fillStyle = 'rgba(226,232,240,0.6)'; ctx.font = '600 42px Manrope, sans-serif'
+    ctx.fillStyle = 'rgba(201,184,154,0.38)'; ctx.font = '600 42px Manrope, sans-serif'
     ctx.fillText('SECTOR MAP', 48, 72)
   }
   const t = new THREE.CanvasTexture(c)
@@ -329,7 +329,7 @@ export function Viewer({ frames, stages, events, className = '' }: ViewerProps) 
     if (!container || !sceneModel) return
 
     const scene = new THREE.Scene()
-    scene.background = new THREE.Color('#050913')
+    scene.background = new THREE.Color('#040506')
     const camera = new THREE.PerspectiveCamera(44, 1, 0.1, 10000)
     const renderer = new THREE.WebGLRenderer({ antialias: true })
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
@@ -362,7 +362,7 @@ export function Viewer({ frames, stages, events, className = '' }: ViewerProps) 
     scene.add(ground)
 
     // Grid
-    const gridMat = new THREE.LineBasicMaterial({ color: '#334155', transparent: true, opacity: 0.4 })
+    const gridMat = new THREE.LineBasicMaterial({ color: '#3a332b', transparent: true, opacity: 0.32 })
     const gp: THREE.Vector3[] = []; const div = 16
     for (let i = 0; i <= div; i++) {
       const z = -pd / 2 + (pd / div) * i
@@ -491,7 +491,7 @@ export function Viewer({ frames, stages, events, className = '' }: ViewerProps) 
   if (frames.length === 0) {
     return (
       <SectionCard title="3D Flight Viewer" description="Three.js sector view with terrain, route, and time-based drone position." className={className}>
-        <div className="rounded-xl border border-dashed border-slate-800 bg-[#070b14] p-5 text-sm text-slate-300">
+        <div className="rounded-md border border-dashed border-[#1a2030] bg-[#0a0e17] p-5 text-[13px] text-[#586577]">
           No trajectory samples are available for the current flight.
         </div>
       </SectionCard>
@@ -501,63 +501,63 @@ export function Viewer({ frames, stages, events, className = '' }: ViewerProps) 
   const uniqueStages = stages.filter((s, i, arr) => arr.findIndex((x) => x.stage === s.stage) === i)
 
   return (
-    <SectionCard title="3D Flight Viewer" description="Sector terrain, full route, and a scrubbable drone position rendered in Three.js." className={className}>
+    <SectionCard title="3D Viewer" description="Scrubbable route replay" className={className}>
       <div className="space-y-4">
         {/* Tile mode toggle */}
-        <div className="flex items-center justify-end gap-2 px-1">
+        <div className="flex items-center justify-end gap-1 px-1">
           <button
             onClick={() => setTileMode('map')}
-            className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+            className={`rounded px-2.5 py-1 text-[11px] font-medium transition ${
               tileMode === 'map'
-                ? 'bg-sky-500/20 text-sky-300 ring-1 ring-sky-500/40'
-                : 'text-slate-500 hover:text-slate-300'
+                ? 'bg-[rgba(207,127,69,0.12)] text-[#cf7f45]'
+                : 'text-[#586577] hover:text-[#8694a8]'
             }`}
           >
             Map
           </button>
           <button
             onClick={() => setTileMode('satellite')}
-            className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+            className={`rounded px-2.5 py-1 text-[11px] font-medium transition ${
               tileMode === 'satellite'
-                ? 'bg-sky-500/20 text-sky-300 ring-1 ring-sky-500/40'
-                : 'text-slate-500 hover:text-slate-300'
+                ? 'bg-[rgba(207,127,69,0.12)] text-[#cf7f45]'
+                : 'text-[#586577] hover:text-[#8694a8]'
             }`}
           >
             Satellite
           </button>
         </div>
 
-        <div ref={containerRef} className="h-[34rem] overflow-hidden rounded-xl border border-slate-900 bg-[#070b14]" />
+        <div ref={containerRef} className="h-[34rem] overflow-hidden rounded border border-[#2a241d] bg-[#070b14]" />
 
-        <div className="grid gap-4 rounded-xl border border-slate-900 bg-[#070b14] p-4 lg:grid-cols-[minmax(0,1fr)_36rem] lg:items-end">
+        <div className="grid gap-3 border border-[#2a241d] bg-[#0b0c0e] p-4 lg:grid-cols-[minmax(0,1fr)_36rem] lg:items-end">
           <div className="space-y-3">
-            <div className="flex items-center justify-between gap-3 text-xs uppercase tracking-[0.18em] text-slate-500">
-              <span>Flight Timeline</span>
+            <div className="flex items-center justify-between gap-3 font-mono text-[10px] uppercase tracking-[0.18em] text-[#586577]">
+              <span>Timeline</span>
               <span className="tabular-nums">{formatDuration(currentTime)}</span>
             </div>
             <input
               type="range" min={minTime} max={maxTime} step={sliderStep} value={currentTime}
               onChange={(e) => setCurrentTime(Number(e.target.value))}
-              className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-800 accent-sky-400"
+              className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-[#1a2030] accent-[#cf7f45]"
             />
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-4">
-            <div className="rounded-lg border border-slate-900 bg-[#090d17] p-3">
-              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Samples</p>
-              <p className="mt-2 text-2xl font-semibold text-slate-100">{formatNumber(frames.length, 0)}</p>
+          <div className="grid gap-2 sm:grid-cols-[repeat(3,minmax(0,1fr))_minmax(0,1.45fr)]">
+            <div className="min-w-0 border border-[#2a241d] bg-[#111316] px-3 py-2.5">
+              <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-[#4a5568]">Samples</p>
+              <p className="mt-1.5 text-xl font-semibold tabular-nums text-[#e8ecf4]">{formatNumber(frames.length, 0)}</p>
             </div>
-            <div className="rounded-lg border border-slate-900 bg-[#090d17] p-3">
-              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Altitude</p>
-              <p className="mt-2 text-lg font-semibold text-slate-100">{currentFrame ? formatMeters(currentFrame.altitude_msl) : '--'}</p>
+            <div className="min-w-0 border border-[#2a241d] bg-[#111316] px-3 py-2.5">
+              <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-[#4a5568]">Alt</p>
+              <p className="mt-1.5 text-lg font-semibold tabular-nums text-[#e8ecf4]">{currentFrame ? formatMeters(currentFrame.altitude_msl) : '--'}</p>
             </div>
-            <div className="rounded-lg border border-slate-900 bg-[#090d17] p-3">
-              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Ground Speed</p>
-              <p className="mt-2 text-lg font-semibold text-slate-100">{currentFrame ? formatSpeed(currentFrame.horizontal_speed) : '--'}</p>
+            <div className="min-w-0 border border-[#2a241d] bg-[#111316] px-3 py-2.5">
+              <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-[#4a5568]">GS</p>
+              <p className="mt-1.5 text-lg font-semibold tabular-nums text-[#e8ecf4]">{currentFrame ? formatSpeed(currentFrame.horizontal_speed) : '--'}</p>
             </div>
-            <div className="rounded-lg border border-slate-900 bg-[#090d17] p-3">
-              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Position</p>
-              <p className="mt-2 text-sm font-semibold text-slate-100">
+            <div className="min-w-0 border border-[#2a241d] bg-[#111316] px-3 py-2.5">
+              <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-[#4a5568]">Pos</p>
+              <p className="mt-1.5 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[12px] font-semibold tabular-nums text-[#e8ecf4]">
                 {currentFrame ? `${formatNumber(currentFrame.lat, 5)} / ${formatNumber(currentFrame.lng, 5)}` : '--'}
               </p>
             </div>
@@ -565,17 +565,17 @@ export function Viewer({ frames, stages, events, className = '' }: ViewerProps) 
         </div>
 
         {/* Legend */}
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 px-1 text-xs text-slate-400">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-1 font-mono text-[12px] text-[#8a8378]">
           {uniqueStages.map((s) => (
             <span key={s.stage} className="flex items-center gap-1.5">
               <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: stageColor(s) }} />
               {s.stage_name}
             </span>
           ))}
-          <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-green-500" />Start</span>
+          <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-[#c89a59]" />Start</span>
           <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-red-500" />Landing</span>
-          <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-yellow-400" />Apogee</span>
-          <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-purple-400" />Chute Deploy</span>
+          <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-[#e2b35b]" />Apogee</span>
+          <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-[#9d6b49]" />Chute</span>
         </div>
       </div>
     </SectionCard>

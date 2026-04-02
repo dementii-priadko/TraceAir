@@ -18,29 +18,29 @@ export type AttitudeChartProps = {
 export function AttitudeChart({ data }: AttitudeChartProps) {
   return (
     <SectionCard
-      title="Attitude Tracking"
-      description="Observed roll, pitch, and yaw through the flight profile."
+      title="Attitude"
+      description="Roll / pitch / yaw"
     >
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data}>
-            <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" />
+            <CartesianGrid stroke="#1a2030" strokeDasharray="3 3" />
             <XAxis
               dataKey="time_s"
-              tick={{ fill: '#94a3b8', fontSize: 12 }}
+              tick={{ fill: '#586577', fontSize: 12 }}
               tickFormatter={(value: number) => `${formatNumber(value, 0)}s`}
-              stroke="#334155"
+              stroke="#1a2030"
             />
             <YAxis
-              tick={{ fill: '#94a3b8', fontSize: 12 }}
+              tick={{ fill: '#586577', fontSize: 12 }}
               tickFormatter={(value: number) => `${formatNumber(value, 0)}°`}
-              stroke="#334155"
+              stroke="#1a2030"
             />
             <Tooltip
               contentStyle={{
-                backgroundColor: '#020617',
-                border: '1px solid #1e293b',
-                borderRadius: 16,
+                backgroundColor: '#111827',
+                border: '1px solid #1a2030',
+                borderRadius: 6,
               }}
               formatter={(value, name) => [
                 `${formatNumber(typeof value === 'number' ? value : 0, 1)}°`,

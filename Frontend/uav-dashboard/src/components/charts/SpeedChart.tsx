@@ -18,29 +18,30 @@ export type SpeedChartProps = {
 export function SpeedChart({ data }: SpeedChartProps) {
   return (
     <SectionCard
-      title="Velocity Envelope"
-      description="Horizontal and vertical speed from the GPS trajectory."
+      title="Velocity"
+      description="Horizontal and vertical speed trends derived from GPS telemetry."
     >
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data}>
-            <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" />
+            <CartesianGrid stroke="rgba(246,232,205,0.08)" strokeDasharray="3 6" vertical={false} />
             <XAxis
               dataKey="time_s"
-              tick={{ fill: '#94a3b8', fontSize: 12 }}
+              tick={{ fill: '#8a8378', fontSize: 12 }}
               tickFormatter={(value: number) => `${formatNumber(value, 0)}s`}
-              stroke="#334155"
+              stroke="rgba(246,232,205,0.1)"
             />
             <YAxis
-              tick={{ fill: '#94a3b8', fontSize: 12 }}
+              tick={{ fill: '#8a8378', fontSize: 12 }}
               tickFormatter={(value: number) => formatNumber(value, 0)}
-              stroke="#334155"
+              stroke="rgba(246,232,205,0.1)"
             />
             <Tooltip
               contentStyle={{
-                backgroundColor: '#020617',
-                border: '1px solid #1e293b',
+                backgroundColor: 'rgba(17, 19, 22, 0.96)',
+                border: '1px solid rgba(246,232,205,0.12)',
                 borderRadius: 16,
+                color: '#f4eee1',
               }}
               formatter={(value, name) => [
                 formatSpeed(typeof value === 'number' ? value : 0),
@@ -54,16 +55,16 @@ export function SpeedChart({ data }: SpeedChartProps) {
               type="monotone"
               dataKey="horizontal_speed"
               name="horizontal_speed"
-              stroke="#22c55e"
-              strokeWidth={2}
+              stroke="#e7c66c"
+              strokeWidth={2.5}
               dot={false}
             />
             <Line
               type="monotone"
               dataKey="vertical_speed"
               name="vertical_speed"
-              stroke="#f97316"
-              strokeWidth={2}
+              stroke="#dd8d52"
+              strokeWidth={2.5}
               dot={false}
             />
           </LineChart>

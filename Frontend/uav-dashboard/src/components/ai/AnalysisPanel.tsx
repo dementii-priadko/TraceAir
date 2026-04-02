@@ -27,15 +27,17 @@ export function AnalysisPanel({
 
   return (
     <SectionCard
-      title="Analysis Summary"
-      description="Text summary returned by the backend for the selected flight."
+      title="Analysis"
+      description="Backend-generated interpretation of the selected flight profile and anomalies."
     >
-      <div className="space-y-3">
-        {analysis ? (
-          <div className="text-xs text-slate-500">{analysis.model}</div>
+      <div className="space-y-4">
+        {analysis?.model ? (
+          <div className="inline-flex rounded-full border border-[var(--color-border)] px-3 py-1 font-mono text-[0.68rem] uppercase tracking-[0.18em] text-[var(--color-text-muted)]">
+            {analysis.model}
+          </div>
         ) : null}
         <div
-          className="markdown-body text-sm leading-6 text-slate-300"
+          className="markdown-body max-w-none text-[0.95rem] leading-7 text-[var(--color-text-secondary)]"
           dangerouslySetInnerHTML={{ __html: renderedBody }}
         />
       </div>

@@ -31,7 +31,7 @@ const tileLayers: Record<
 }
 
 function createMarkerIcon(label: string, tone: 'start' | 'end') {
-  const color = tone === 'start' ? '#e2e8f0' : '#7dd3fc'
+  const color = tone === 'start' ? '#f4eee1' : '#dd8d52'
 
   return divIcon({
     className: '',
@@ -77,17 +77,17 @@ export function WorldMapCard({ points }: WorldMapCardProps) {
 
   return (
     <SectionCard
-      title="Map"
-      description="Start and end positions projected on a simplified global view."
+      title="Ground Track"
+      description="The GPS route projected onto a geographic base layer with launch and terminal markers."
       actions={
-        <div className="flex items-center gap-1 rounded-lg border border-slate-800 bg-[#070c15] p-1">
+        <div className="flex items-center gap-px border border-[var(--color-border)] bg-[var(--color-border)]">
           <button
             type="button"
             onClick={() => setMapStyle('osm')}
-            className={`rounded-md px-2 py-1 text-[10px] font-medium uppercase tracking-[0.14em] ${
+            className={`px-3 py-1.5 text-[0.62rem] font-medium uppercase tracking-[0.18em] transition ${
               mapStyle === 'osm'
-                ? 'bg-slate-700 text-slate-100'
-                : 'text-slate-500'
+                ? 'bg-[rgba(207,127,69,0.16)] text-[var(--color-text-primary)]'
+                : 'bg-[rgba(255,255,255,0.02)] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'
             }`}
           >
             Map
@@ -95,10 +95,10 @@ export function WorldMapCard({ points }: WorldMapCardProps) {
           <button
             type="button"
             onClick={() => setMapStyle('satellite')}
-            className={`rounded-md px-2 py-1 text-[10px] font-medium uppercase tracking-[0.14em] ${
+            className={`px-3 py-1.5 text-[0.62rem] font-medium uppercase tracking-[0.18em] transition ${
               mapStyle === 'satellite'
-                ? 'bg-slate-700 text-slate-100'
-                : 'text-slate-500'
+                ? 'bg-[rgba(207,127,69,0.16)] text-[var(--color-text-primary)]'
+                : 'bg-[rgba(255,255,255,0.02)] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'
             }`}
           >
             Satellite
@@ -106,7 +106,7 @@ export function WorldMapCard({ points }: WorldMapCardProps) {
         </div>
       }
     >
-      <div className="overflow-hidden rounded-lg border border-slate-900 bg-[#070b14]">
+      <div className="overflow-hidden border border-[var(--color-border)] bg-[rgba(0,0,0,0.12)]">
         <MapContainer
           center={[startPoint.lat, startPoint.lng]}
           zoom={4}
@@ -118,9 +118,9 @@ export function WorldMapCard({ points }: WorldMapCardProps) {
           <Polyline
             positions={route}
             pathOptions={{
-              color: '#7dd3fc',
-              weight: 3,
-              opacity: 0.9,
+              color: '#dd8d52',
+              weight: 4,
+              opacity: 0.88,
             }}
           />
           <Marker position={[startPoint.lat, startPoint.lng]} icon={startIcon} />

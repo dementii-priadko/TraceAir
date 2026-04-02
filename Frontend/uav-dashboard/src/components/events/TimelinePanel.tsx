@@ -6,39 +6,36 @@ export type TimelinePanelProps = {
   items: TimelineItem[]
 }
 
-const timelineTypeStyles: Record<TimelineItem['type'], string> = {
-  event: 'border border-slate-800 bg-[#0b1019] text-slate-400',
-  mode: 'border border-slate-800 bg-[#0b1019] text-slate-400',
-  stage: 'border border-slate-800 bg-[#0b1019] text-slate-400',
-}
-
 export function TimelinePanel({ items }: TimelinePanelProps) {
   return (
     <SectionCard
-      title="Stages & Modes"
-      description="Mission stage transitions and mode changes from the parsed log."
-      contentClassName="max-h-[28rem] overflow-y-auto"
+      title="Timeline"
+      description="Stage transitions, commands, and noteworthy flight events in sequence."
+      contentClassName="max-h-[34rem] overflow-y-auto"
     >
-      <div className="space-y-3">
+      <div className="space-y-2">
         {items.map((item) => (
           <article
             key={item.id}
-            className="rounded-lg border border-slate-900 bg-[#090d17] p-3.5"
+            className="group flex items-start justify-between gap-4 rounded-[1rem] border border-transparent bg-[rgba(255,255,255,0.018)] px-4 py-3 transition hover:border-[var(--color-border)] hover:bg-[rgba(255,255,255,0.032)]"
           >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-sm font-medium text-slate-100">{item.title}</p>
-                <p className="mt-1 text-sm text-slate-400">{item.detail}</p>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-3">
+                <span className="mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full bg-[var(--color-accent)] shadow-[0_0_0_4px_rgba(221,141,82,0.12)]" />
+                <p className="text-[0.92rem] font-medium tracking-[-0.02em] text-[var(--color-text-primary)]">{item.title}</p>
               </div>
+              <p className="mt-2 pl-[1.4rem] text-[0.8rem] leading-relaxed text-[var(--color-text-secondary)]">{item.detail}</p>
+            </div>
+            <div className="flex shrink-0 flex-col items-end gap-2">
               <span
-                className={`rounded-md px-2 py-1 text-[10px] font-medium uppercase tracking-[0.14em] ${timelineTypeStyles[item.type]}`}
+                className="rounded-full border border-[var(--color-border)] px-2.5 py-1 font-mono text-[0.62rem] font-medium uppercase tracking-[0.18em] text-[var(--color-text-muted)]"
               >
                 {item.type}
               </span>
+              <span className="font-mono text-[0.72rem] tabular-nums text-[var(--color-text-muted)]">
+                T+{formatNumber(item.time_s, 1)}s
+              </span>
             </div>
-            <p className="mt-3 font-mono text-xs text-slate-500">
-              T+{formatNumber(item.time_s, 1)} s
-            </p>
           </article>
         ))}
       </div>
