@@ -49,6 +49,7 @@ type MapBounds = {
 }
 
 type TileMode = MapStyle
+type RouteColorMode = 'stage' | 'speed' | 'time'
 
 const MIN_GROUND_SIZE = 800
 const GROUND_PADDING_RATIO = 0.7
@@ -76,6 +77,23 @@ function stageColor(stage: FlightStage): string {
 function stageColorByIndex(idx: number, stages: FlightStage[]): string {
   const s = stages.find((st) => st.stage === idx)
   return s ? stageColor(s) : '#64748b'
+}
+
+function getSpeedColor(progress: number): string {
+  const stops = [
+    { at: 0, color: new THREE.Color('#22c55e') },
+    { at: 0.45, color: new THREE.Color('#facc15') },
+    { at: 0.72, color: new THREE.Color('#f97316') },
+    { at: 1, color: new THREE.Color('#ef4444') },
+  ]
+  const clamped = clamp(progress, 0, 1)
+  const upperIndex = stops.findIndex((stop) => clamped <= stop.at)
+  if (upperIndex <= 0) return `#${stops[0].color.getHexString()}`
+  const upper = stops[upperIndex]
+  const lower = stops[upperIndex - 1]
+  const localT = (clamped - lower.at) / Math.max(upper.at - lower.at, 1e-6)
+  const mixed = new THREE.Color().copy(lower.color).lerp(upper.color, localT)
+  return `#${mixed.getHexString()}`
 }
 
 // ---------------------------------------------------------------------------
@@ -271,29 +289,50 @@ function stageIndexAtTime(time: number, stages: FlightStage[]): number {
   return idx
 }
 
-function buildStageRouteSegments(
-  positions: THREE.Vector3[], frames: ViewerFrame[], stages: FlightStage[],
+function buildRouteSegments(
+  positions: THREE.Vector3[],
+  frames: ViewerFrame[],
+  stages: FlightStage[],
+  colorMode: RouteColorMode,
 ): { geometry: LineGeometry; material: LineMaterial }[] {
   if (positions.length < 2) return []
   const segments: { geometry: LineGeometry; material: LineMaterial }[] = []
-  let cur = stageIndexAtTime(frames[0].time_s, stages)
-  let pts: number[] = [positions[0].x, positions[0].y, positions[0].z]
 
-  const flush = () => {
-    if (pts.length < 6) return
-    const geo = new LineGeometry(); geo.setPositions(pts)
-    const mat = new LineMaterial({ color: new THREE.Color(stageColorByIndex(cur, stages)).getHex(), linewidth: 3, transparent: true, opacity: 0.95 })
-    segments.push({ geometry: geo, material: mat })
+  const speeds = frames.map((frame) => Math.abs(frame.horizontal_speed))
+  const minSpeed = Math.min(...speeds)
+  const maxSpeed = Math.max(...speeds)
+
+  const getSegmentColor = (segmentIndex: number) => {
+    if (colorMode === 'stage') {
+      const midTime = (frames[segmentIndex - 1].time_s + frames[segmentIndex].time_s) / 2
+      return stageColorByIndex(stageIndexAtTime(midTime, stages), stages)
+    }
+
+    if (colorMode === 'speed') {
+      const avgSpeed = (speeds[segmentIndex - 1] + speeds[segmentIndex]) / 2
+      const normalizedSpeed = (avgSpeed - minSpeed) / Math.max(maxSpeed - minSpeed, 1e-6)
+      return getSpeedColor(normalizedSpeed)
+    }
+
+    const normalizedTime = segmentIndex / Math.max(positions.length - 1, 1)
+    return getSpeedColor(normalizedTime)
   }
 
   for (let i = 1; i < positions.length; i++) {
-    const s = stageIndexAtTime(frames[i].time_s, stages)
-    if (s !== cur) {
-      pts.push(positions[i].x, positions[i].y, positions[i].z); flush()
-      cur = s; pts = [positions[i].x, positions[i].y, positions[i].z]
-    } else { pts.push(positions[i].x, positions[i].y, positions[i].z) }
+    const geo = new LineGeometry()
+    geo.setPositions([
+      positions[i - 1].x, positions[i - 1].y, positions[i - 1].z,
+      positions[i].x, positions[i].y, positions[i].z,
+    ])
+    const mat = new LineMaterial({
+      color: new THREE.Color(getSegmentColor(i)).getHex(),
+      linewidth: 3,
+      transparent: true,
+      opacity: 0.95,
+    })
+    segments.push({ geometry: geo, material: mat })
   }
-  flush()
+
   return segments
 }
 
@@ -317,6 +356,7 @@ export const Viewer = forwardRef<ViewerHandle, ViewerProps>(function Viewer({
   const sceneRef = useRef<SceneHandles | null>(null)
   const [currentTime, setCurrentTime] = useState(frames[0]?.time_s ?? 0)
   const [tileMode, setTileMode] = useState<TileMode>('osm')
+  const [routeColorMode, setRouteColorMode] = useState<RouteColorMode>('stage')
   const currentTimeRef = useRef(currentTime)
   const seekAnimationRef = useRef<number | null>(null)
 
@@ -468,7 +508,7 @@ export const Viewer = forwardRef<ViewerHandle, ViewerProps>(function Viewer({
     scene.add(mapFrame)
 
     // Route segments
-    const routeSegs = buildStageRouteSegments(positions, sceneModel.centeredFrames, stages)
+    const routeSegs = buildRouteSegments(positions, sceneModel.centeredFrames, stages, routeColorMode)
     for (const s of routeSegs) {
       s.material.resolution.set(container.clientWidth || 1, container.clientHeight || 1)
       scene.add(new Line2(s.geometry, s.material))
@@ -550,7 +590,7 @@ export const Viewer = forwardRef<ViewerHandle, ViewerProps>(function Viewer({
       for (const d of disposables) d.dispose()
       renderer.dispose(); sceneRef.current = null; container.innerHTML = ''
     }
-  }, [frames, stages, events, sceneModel])
+  }, [frames, stages, events, sceneModel, routeColorMode])
 
   // ---- Tile mode swap (texture only, no scene rebuild) --------------------
   useEffect(() => {
@@ -588,32 +628,60 @@ export const Viewer = forwardRef<ViewerHandle, ViewerProps>(function Viewer({
   }
 
   const uniqueStages = stages.filter((s, i, arr) => arr.findIndex((x) => x.stage === s.stage) === i)
+  const colorModeOptions: Array<{ id: RouteColorMode; label: string }> = [
+    { id: 'stage', label: 'Stage' },
+    { id: 'speed', label: 'Speed' },
+    { id: 'time', label: 'Time' },
+  ]
 
   return (
     <SectionCard title="3D Viewer" description="Scrubbable route replay" className={className}>
       <div className="space-y-4">
-        {/* Tile mode toggle */}
-        <div className="flex items-center justify-end gap-1 px-1">
-          <button
-            onClick={() => setTileMode('osm')}
-            className={`rounded px-2.5 py-1 text-[11px] font-medium transition ${
-              tileMode === 'osm'
-                ? 'bg-[rgba(207,127,69,0.12)] text-[#cf7f45]'
-                : 'text-[#586577] hover:text-[#8694a8]'
-            }`}
-          >
-            Map
-          </button>
-          <button
-            onClick={() => setTileMode('satellite')}
-            className={`rounded px-2.5 py-1 text-[11px] font-medium transition ${
-              tileMode === 'satellite'
-                ? 'bg-[rgba(207,127,69,0.12)] text-[#cf7f45]'
-                : 'text-[#586577] hover:text-[#8694a8]'
-            }`}
-          >
-            Satellite
-          </button>
+        <div className="flex flex-wrap items-center justify-between gap-3 px-1">
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#586577]">Map</span>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setTileMode('osm')}
+                className={`rounded px-2.5 py-1 text-[11px] font-medium transition ${
+                  tileMode === 'osm'
+                    ? 'bg-[rgba(207,127,69,0.12)] text-[#cf7f45]'
+                    : 'text-[#586577] hover:text-[#8694a8]'
+                }`}
+              >
+                Map
+              </button>
+              <button
+                onClick={() => setTileMode('satellite')}
+                className={`rounded px-2.5 py-1 text-[11px] font-medium transition ${
+                  tileMode === 'satellite'
+                    ? 'bg-[rgba(207,127,69,0.12)] text-[#cf7f45]'
+                    : 'text-[#586577] hover:text-[#8694a8]'
+                }`}
+              >
+                Satellite
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#586577]">Color Mode</span>
+            <div className="flex items-center gap-1">
+              {colorModeOptions.map((option) => (
+                <button
+                  key={option.id}
+                  onClick={() => setRouteColorMode(option.id)}
+                  className={`rounded px-2.5 py-1 text-[11px] font-medium transition ${
+                    routeColorMode === option.id
+                      ? 'bg-[rgba(207,127,69,0.12)] text-[#cf7f45]'
+                      : 'text-[#586577] hover:text-[#8694a8]'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         <div ref={containerRef} className="h-[22rem] overflow-hidden rounded border border-[#2a241d] bg-[#070b14] sm:h-[28rem] xl:h-[34rem]" />
@@ -655,12 +723,27 @@ export const Viewer = forwardRef<ViewerHandle, ViewerProps>(function Viewer({
 
         {/* Legend */}
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-1 font-mono text-[12px] text-[#8a8378]">
-          {uniqueStages.map((s) => (
+          {routeColorMode === 'stage' ? uniqueStages.map((s) => (
             <span key={s.stage} className="flex items-center gap-1.5">
               <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: stageColor(s) }} />
               {s.stage_name}
             </span>
-          ))}
+          )) : (
+            <>
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block h-2.5 w-2.5 rounded-full bg-[#22c55e]" />
+                {routeColorMode === 'speed' ? 'Lower speed' : 'Earlier time'}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block h-2.5 w-2.5 rounded-full bg-[#facc15]" />
+                Mid range
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block h-2.5 w-2.5 rounded-full bg-[#ef4444]" />
+                {routeColorMode === 'speed' ? 'Higher speed' : 'Later time'}
+              </span>
+            </>
+          )}
           <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-[#c89a59]" />Start</span>
           <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-red-500" />Landing</span>
           <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-[#e2b35b]" />Apogee</span>
