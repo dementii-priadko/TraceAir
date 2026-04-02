@@ -132,3 +132,9 @@ The parser lives in `mavlink_parser.py`. It reads ArduPilot DataFlash logs and p
 - events, stages, modes, and parameters
 
 The parser output is saved directly as the canonical flight JSON.
+
+Metric calculation notes:
+
+- `total_distance_m` is calculated from consecutive GPS fixes with the Haversine formula
+- `max_horizontal_speed_ms` and `max_vertical_speed_ms` are derived from IMU acceleration arrays via trapezoidal integration
+- when IMU data is unavailable, speed metrics fall back to GPS-derived estimates

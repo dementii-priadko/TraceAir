@@ -205,6 +205,46 @@ def trapezoidal_integrate(times: np.ndarray, values: np.ndarray) -> np.ndarray:
     return vel
 
 
+def integrate_velocity_components(
+    times: np.ndarray,
+    acc_x: np.ndarray,
+    acc_y: np.ndarray,
+    acc_z: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Derive velocity components from accelerometer samples.
+
+    We remove the average of the first stationary samples on each axis,
+    then integrate with the trapezoidal rule.
+    """
+    if len(times) == 0:
+        empty = np.array([], dtype=np.float64)
+        return empty, empty, empty
+
+    n_cal = min(50, len(times))
+    bias_x = float(np.mean(acc_x[:n_cal]))
+    bias_y = float(np.mean(acc_y[:n_cal]))
+    bias_z = float(np.mean(acc_z[:n_cal]))
+
+    vel_x = trapezoidal_integrate(times, acc_x - bias_x)
+    vel_y = trapezoidal_integrate(times, acc_y - bias_y)
+    vel_z = trapezoidal_integrate(times, acc_z - bias_z)
+    return vel_x, vel_y, vel_z
+
+
+def velocity_metrics_from_components(
+    vel_x: np.ndarray, vel_y: np.ndarray, vel_z: np.ndarray
+) -> tuple[float, float]:
+    """Return max horizontal and vertical speed from integrated velocity."""
+    if len(vel_x) == 0:
+        return 0.0, 0.0
+
+    horizontal_speed = np.sqrt(vel_x**2 + vel_y**2)
+    max_horizontal_speed = float(np.max(np.abs(horizontal_speed)))
+    max_vertical_speed = float(np.max(np.abs(vel_z)))
+    return max_horizontal_speed, max_vertical_speed
+
+
 def _message_time_seconds(message: Any) -> float | None:
     if hasattr(message, "time_boot_ms"):
         return float(message.time_boot_ms) / 1_000.0
@@ -408,6 +448,8 @@ def parse_tlog(filepath: str) -> dict[str, Any]:
     max_accel = 0.0
     imu_velocity: list[dict[str, Any]] = []
     imu_chart: list[dict[str, Any]] = []
+    imu_max_h_speed = 0.0
+    imu_max_v_speed = 0.0
 
     if not imu_df.empty:
         times_s = imu_df["time_s"].values
@@ -417,14 +459,9 @@ def parse_tlog(filepath: str) -> dict[str, Any]:
         acc_mag = np.sqrt(acc_x**2 + acc_y**2 + acc_z**2)
         max_accel = float(np.max(acc_mag))
 
-        n_cal = min(50, len(acc_z))
-        gravity_est = np.mean(acc_z[:n_cal])
-        acc_z_no_g = acc_z - gravity_est
-
-        vel_z = trapezoidal_integrate(times_s, acc_z_no_g)
-        vel_x = trapezoidal_integrate(times_s, acc_x)
-        vel_y = trapezoidal_integrate(times_s, acc_y)
+        vel_x, vel_y, vel_z = integrate_velocity_components(times_s, acc_x, acc_y, acc_z)
         vel_total = np.sqrt(vel_x**2 + vel_y**2 + vel_z**2)
+        imu_max_h_speed, imu_max_v_speed = velocity_metrics_from_components(vel_x, vel_y, vel_z)
 
         velocity_step = max(1, len(times_s) // 500)
         for idx in range(0, len(times_s), velocity_step):
@@ -463,7 +500,14 @@ def parse_tlog(filepath: str) -> dict[str, Any]:
             "des_pitch": round(row["des_pitch"], 2),
         })
 
-    flight_duration = gps_trajectory[-1]["time_s"] - gps_trajectory[0]["time_s"] if gps_trajectory else 0.0
+    if imu_max_h_speed > 0.0:
+        max_h_speed = imu_max_h_speed
+    if imu_max_v_speed > 0.0:
+        max_v_speed = imu_max_v_speed
+
+    flight_duration = 0.0
+    if all_times_s:
+        flight_duration = max(all_times_s) - min(all_times_s)
 
     events = [
         {"time_s": row["time_s"], "message": row["message"]}
@@ -820,6 +864,8 @@ def parse_flight_log(filepath: str) -> dict[str, Any]:
 
     max_accel = 0.0
     imu_velocity: list[dict] = []
+    imu_max_h_speed = 0.0
+    imu_max_v_speed = 0.0
 
     if not imu0.empty:
         times_s = imu0["time_s"].values
@@ -830,22 +876,10 @@ def parse_flight_log(filepath: str) -> dict[str, Any]:
         # Acceleration magnitude (includes gravity ~9.81 m/s²)
         acc_mag = np.sqrt(acc_x**2 + acc_y**2 + acc_z**2)
         max_accel = float(np.max(acc_mag))
-
-        # Remove gravity for integration (approximate: subtract mean
-        # of first 50 samples which should be stationary on the pad)
-        n_cal = min(50, len(acc_z))
-        gravity_est = np.mean(acc_z[:n_cal])
-
-        # Vertical accel with gravity removed (body frame Z ≈ world up
-        # while on pad, diverges during flight — this is approximate)
-        acc_z_no_g = acc_z - gravity_est
-
-        # Trapezoidal integration: acceleration → velocity
-        vel_z = trapezoidal_integrate(times_s, acc_z_no_g)
-        vel_x = trapezoidal_integrate(times_s, acc_x)
-        vel_y = trapezoidal_integrate(times_s, acc_y)
+        vel_x, vel_y, vel_z = integrate_velocity_components(times_s, acc_x, acc_y, acc_z)
 
         vel_total = np.sqrt(vel_x**2 + vel_y**2 + vel_z**2)
+        imu_max_h_speed, imu_max_v_speed = velocity_metrics_from_components(vel_x, vel_y, vel_z)
 
         # Downsample for JSON output (every 10th point)
         step = max(1, len(times_s) // 500)
@@ -880,11 +914,15 @@ def parse_flight_log(filepath: str) -> dict[str, Any]:
     # ------------------------------------------------------------------
     # Flight duration
     # ------------------------------------------------------------------
+    if imu_max_h_speed > 0.0:
+        max_h_speed = imu_max_h_speed
+    if imu_max_v_speed > 0.0:
+        max_v_speed = imu_max_v_speed
+
     flight_duration = 0.0
-    if gps_trajectory:
-        flight_duration = gps_trajectory[-1]["time_s"] - gps_trajectory[0]["time_s"]
-    elif sim_trajectory:
-        flight_duration = sim_trajectory[-1]["time_s"] - sim_trajectory[0]["time_s"]
+    duration_sources = [records[-1]["time_s"] for records in (gps_raw, imu_raw, att_raw, baro_raw, sim_raw) if records]
+    if duration_sources:
+        flight_duration = max(duration_sources)
 
     # ------------------------------------------------------------------
     # Flight stages from FSTG messages
