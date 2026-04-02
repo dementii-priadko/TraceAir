@@ -117,6 +117,12 @@ export function adaptSummaryMetrics(flight: FlightLog): SummaryMetric[] {
       hint: 'IMU trapezoidal integration',
     },
     {
+      id: 'vertical-speed',
+      label: 'Max Vertical Speed',
+      value: formatSpeed(metrics.max_vertical_speed_ms),
+      hint: 'Absolute climb or descent rate',
+    },
+    {
       id: 'acceleration',
       label: 'Peak Acceleration',
       value: formatAcceleration(metrics.max_acceleration_ms2),
