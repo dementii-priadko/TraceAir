@@ -265,9 +265,6 @@ function createArrowheadDrone(): THREE.Group {
   return drone
 }
 
-// ---------------------------------------------------------------------------
-// Stage helpers
-// ---------------------------------------------------------------------------
 function stageIndexAtTime(time: number, stages: FlightStage[]): number {
   let idx = 0
   for (let i = stages.length - 1; i >= 0; i--) { if (time >= stages[i].time_s) { idx = stages[i].stage; break } }

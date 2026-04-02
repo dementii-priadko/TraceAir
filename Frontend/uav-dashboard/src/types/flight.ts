@@ -57,8 +57,12 @@ export type GpsTrajectoryPoint = {
 
 export type SimTrajectoryPoint = {
   time_s: number
+  lat: number
+  lng: number
   enu: EnuCoordinates
   alt_msl: number
+  h_speed: number
+  v_speed: number
   roll: number
   pitch: number
   yaw: number

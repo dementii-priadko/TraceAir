@@ -317,6 +317,33 @@ def velocity_metrics_from_components(
     return max_horizontal_speed, max_vertical_speed
 
 
+def enrich_trajectory_kinematics(points: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Populate per-point segment distance and speed fields from a trajectory."""
+    total_points = len(points)
+    if total_points == 0:
+        return points
+
+    points[0]["seg_dist"] = round(float(points[0].get("seg_dist", 0.0)), 3)
+    points[0]["h_speed"] = round(float(points[0].get("h_speed", 0.0)), 2)
+    points[0]["v_speed"] = round(float(points[0].get("v_speed", 0.0)), 2)
+
+    for index in range(1, total_points):
+        previous = points[index - 1]
+        current = points[index]
+        dt = float(current["time_s"]) - float(previous["time_s"])
+        seg_dist = haversine(previous["lat"], previous["lng"], current["lat"], current["lng"])
+        h_speed = seg_dist / dt if dt > 0 else 0.0
+        v_speed = (
+            (float(current["alt_msl"]) - float(previous["alt_msl"])) / dt
+            if dt > 0 else 0.0
+        )
+        current["seg_dist"] = round(seg_dist, 3)
+        current["h_speed"] = round(h_speed, 2)
+        current["v_speed"] = round(v_speed, 2)
+
+    return points
+
+
 def _message_time_seconds(message: Any) -> float | None:
     if hasattr(message, "time_boot_ms"):
         return float(message.time_boot_ms) / 1_000.0
@@ -428,6 +455,8 @@ def parse_tlog(
 
     if not gps_raw:
         raise ValueError("No GPS_RAW_INT samples found in telemetry log")
+    if not imu_raw:
+        raise ValueError("No RAW_IMU samples found in telemetry log")
 
     if progress_callback:
         progress_callback(0.38, "Normalizing telemetry")
@@ -519,8 +548,12 @@ def parse_tlog(
     sim_trajectory = [
         {
             "time_s": point["time_s"],
+            "lat": point["lat"],
+            "lng": point["lng"],
             "enu": point["enu"],
             "alt_msl": point["alt_msl"],
+            "h_speed": point["h_speed"],
+            "v_speed": point["v_speed"],
             "roll": 0.0,
             "pitch": 0.0,
             "yaw": 0.0,
@@ -801,6 +834,11 @@ def parse_flight_log(
                 "vibe_y": m.VibeY, "vibe_z": m.VibeZ,
             })
 
+    if not gps_raw:
+        raise ValueError("No GPS samples found in flight log")
+    if not imu_raw:
+        raise ValueError("No IMU samples found in flight log")
+
     if progress_callback:
         progress_callback(0.34, "Normalizing sensor streams")
 
@@ -955,13 +993,19 @@ def parse_flight_log(
         )
         sim_trajectory.append({
             "time_s": row["time_s"],
+            "lat": row["lat"],
+            "lng": row["lng"],
             "enu": {"e": e, "n": n, "u": u},
             "alt_msl": row["alt"],
+            "h_speed": 0.0,
+            "v_speed": 0.0,
             "roll": row["roll"],
             "pitch": row["pitch"],
             "yaw": row["yaw"],
             "quat": [row["q1"], row["q2"], row["q3"], row["q4"]],
         })
+
+    sim_trajectory = enrich_trajectory_kinematics(sim_trajectory)
 
     if progress_callback:
         progress_callback(0.74, "Integrating IMU data")
@@ -1142,7 +1186,7 @@ def parse_flight_log(
             },
             "imu": {
                 "rate_hz": imu_rate,
-                "n_samples": len(imu_raw),
+                "n_samples": len(imu0),
                 "units": {
                     "acc": "m/s²", "gyr": "rad/s",
                 },

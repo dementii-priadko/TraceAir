@@ -46,6 +46,12 @@ class FlightStore:
     def _analysis_path(self, flight_id: str) -> Path:
         return self.storage_dir / f"{flight_id}.analysis.json"
 
+    def _resolve_upload_path(self, upload_path: str) -> Path:
+        stored_path = Path(upload_path)
+        if stored_path.is_absolute():
+            return stored_path
+        return (self.storage_dir / stored_path).resolve()
+
     def _is_valid_flight_payload(self, payload: dict | None) -> bool:
         if not isinstance(payload, dict):
             return False
@@ -135,6 +141,48 @@ class FlightStore:
             return None
         return json.loads(flight_path.read_text(encoding="utf-8"))
 
+    def reprocess_flight(self, flight_id: str) -> dict:
+        with self._lock:
+            index = self._read_index()
+            record = index.get("flights", {}).get(flight_id)
+            if not isinstance(record, dict):
+                raise KeyError(flight_id)
+
+            upload_path_value = record.get("upload_path")
+            if not isinstance(upload_path_value, str) or not upload_path_value:
+                raise FileNotFoundError(f"Missing upload path for flight {flight_id}")
+
+            upload_path = self._resolve_upload_path(upload_path_value)
+            if not upload_path.exists():
+                raise FileNotFoundError(f"Upload file not found for flight {flight_id}: {upload_path}")
+
+            parsed = parse_flight_log(str(upload_path))
+            self._json_path(flight_id).write_text(
+                json.dumps(parsed, indent=2), encoding="utf-8"
+            )
+            self._analysis_path(flight_id).unlink(missing_ok=True)
+            return parsed
+
+    def reprocess_all_flights(self) -> dict[str, list[str]]:
+        with self._lock:
+            index = self._read_index()
+            flight_ids = list(index.get("flights", {}).keys())
+
+        reprocessed: list[str] = []
+        failed: list[str] = []
+
+        for flight_id in flight_ids:
+            try:
+                self.reprocess_flight(flight_id)
+                reprocessed.append(flight_id)
+            except Exception:
+                failed.append(flight_id)
+
+        return {
+            "reprocessed": reprocessed,
+            "failed": failed,
+        }
+
     def get_cached_analysis(self, flight_id: str) -> dict | None:
         analysis_path = self._analysis_path(flight_id)
         if not analysis_path.exists():
@@ -199,6 +247,23 @@ class UploadJobStore:
             return dict(job) if job is not None else None
 
 
+def build_analysis_unavailable(flight_id: str, reason: str) -> dict:
+    return {
+        "id": flight_id,
+        "model": "disabled",
+        "summary": (
+            "## General analysis\n"
+            f"AI analysis is unavailable: {reason}.\n\n"
+            "## Key metrics\n"
+            "Use the parsed telemetry metrics shown on the dashboard.\n\n"
+            "## Flight phases\n"
+            "No AI-generated phase summary is available.\n\n"
+            "## Anomaly detection\n"
+            "No AI-generated anomaly review is available."
+        ),
+    }
+
+
 def build_analysis_prompt(flight_id: str, flight_data: dict) -> str:
     metrics = flight_data.get("metrics", {})
     meta = flight_data.get("meta", {})
@@ -229,7 +294,7 @@ def build_analysis_prompt(flight_id: str, flight_data: dict) -> str:
 def generate_analysis(flight_id: str, flight_data: dict) -> dict:
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
-        raise HTTPException(status_code=503, detail="GEMINI_API_KEY is not configured")
+        return build_analysis_unavailable(flight_id, "GEMINI_API_KEY is not configured")
 
     client = genai.Client(api_key=api_key)
     response = client.models.generate_content(
@@ -303,7 +368,10 @@ async def upload_flight(file: UploadFile = File(...)):
 
             cached = store.get_cached_analysis(flight_id)
             if cached is None:
-                analysis = generate_analysis(flight_id, flight)
+                try:
+                    analysis = generate_analysis(flight_id, flight)
+                except Exception as exc:
+                    analysis = build_analysis_unavailable(flight_id, str(exc))
                 store.save_analysis(flight_id, analysis)
 
             upload_jobs.update(
@@ -350,6 +418,30 @@ async def get_flight(flight_id: str):
     return flight
 
 
+@app.post("/api/flights/{flight_id}/reprocess")
+async def reprocess_flight(flight_id: str):
+    try:
+        flight = store.reprocess_flight(flight_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Flight not found") from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Failed to reprocess flight log: {exc}") from exc
+
+    return {"id": flight_id, "reprocessed": True, "flight": flight}
+
+
+@app.post("/api/flights/reprocess")
+async def reprocess_all_flights():
+    result = store.reprocess_all_flights()
+    return {
+        "reprocessed_count": len(result["reprocessed"]),
+        "failed_count": len(result["failed"]),
+        **result,
+    }
+
+
 @app.get("/api/flights/{flight_id}/analysis")
 async def get_flight_analysis(flight_id: str):
     flight = store.get_flight(flight_id)
@@ -360,6 +452,9 @@ async def get_flight_analysis(flight_id: str):
     if cached is not None:
         return cached
 
-    analysis = generate_analysis(flight_id, flight)
+    try:
+        analysis = generate_analysis(flight_id, flight)
+    except Exception as exc:
+        analysis = build_analysis_unavailable(flight_id, str(exc))
     store.save_analysis(flight_id, analysis)
     return analysis

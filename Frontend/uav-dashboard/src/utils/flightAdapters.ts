@@ -114,7 +114,7 @@ export function adaptSummaryMetrics(flight: FlightLog): SummaryMetric[] {
       id: 'horizontal-speed',
       label: 'Max Horizontal Speed',
       value: formatSpeed(metrics.max_horizontal_speed_ms),
-      hint: 'GPS derived',
+      hint: 'IMU trapezoidal integration',
     },
     {
       id: 'acceleration',
@@ -210,7 +210,10 @@ export function adaptTimelineItems(flight: FlightLog): TimelineItem[] {
 }
 
 export function adaptViewerFrames(flight: FlightLog): ViewerFrame[] {
-  return flight.trajectory.gps.map((point) => ({
+  const source =
+    flight.trajectory.sim.length > 0 ? flight.trajectory.sim : flight.trajectory.gps
+
+  return source.map((point) => ({
     time_s: point.time_s,
     position: {
       x: point.enu.e,
