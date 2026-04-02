@@ -187,19 +187,19 @@ export function DashboardPage() {
         : storedFlightLabel || 'Uploaded flight log'
 
   return (
-    <main className="min-h-screen bg-transparent text-[var(--color-text-primary)]">
-      <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-4 px-4 py-4 sm:px-5 sm:py-5 lg:px-8 lg:py-8">
-        <header className="relative overflow-visible border border-[var(--color-border)] bg-[var(--hero-gradient)] px-5 py-5 shadow-[var(--page-shadow)] sm:px-7 sm:py-7">
+    <main className="min-h-screen overflow-x-hidden bg-transparent text-[var(--color-text-primary)]">
+      <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-4 px-3 py-3 sm:px-5 sm:py-5 lg:px-8 lg:py-8">
+        <header className="relative overflow-hidden border border-[var(--color-border)] bg-[var(--hero-gradient)] px-4 py-4 shadow-[var(--page-shadow)] sm:overflow-visible sm:px-7 sm:py-7">
           <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,rgba(207,127,69,0.85),transparent)]" />
           <div className="pointer-events-none absolute right-[-8rem] top-[-8rem] h-64 w-64 rounded-full bg-[rgba(207,127,69,0.08)] blur-3xl" />
           <div className="pointer-events-none absolute bottom-[-6rem] left-[12%] h-40 w-40 rounded-full bg-[rgba(117,84,54,0.1)] blur-3xl" />
-          <div className="relative grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_auto] xl:items-end">
+          <div className="relative grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_auto] xl:items-end">
             <div className="space-y-4">
               <div className="space-y-3">
-                <h1 className="max-w-4xl font-[var(--font-display)] text-[2rem] font-semibold leading-[0.98] tracking-[-0.035em] text-[var(--color-text-primary)] sm:text-[2.7rem]">
+                <h1 className="max-w-4xl font-[var(--font-display)] text-[1.55rem] font-semibold leading-[0.98] tracking-[-0.035em] text-[var(--color-text-primary)] sm:text-[2.7rem]">
                   TraceAir mission playback for post-flight analysis.
                 </h1>
-                <p className="max-w-2xl text-[0.96rem] leading-relaxed text-[var(--color-text-secondary)] sm:text-[1rem]">
+                <p className="max-w-2xl text-[0.88rem] leading-relaxed text-[var(--color-text-secondary)] sm:text-[1rem]">
                   Review the vehicle path, stage changes, route geometry, and backend analysis in one compact surface built around the selected flight.
                 </p>
               </div>
@@ -215,12 +215,12 @@ export function DashboardPage() {
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-              <div className="relative">
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center xl:justify-end">
+              <div className="relative w-full sm:w-auto">
                 <button
                   type="button"
                   onClick={() => setExportOpen((value) => !value)}
-                  className="inline-flex h-10 items-center gap-2 border border-[var(--color-border)] bg-[var(--control-bg)] px-4 text-[0.8rem] font-medium text-[var(--color-text-secondary)] transition hover:border-[rgba(207,127,69,0.45)] hover:text-[var(--color-text-primary)]"
+                  className="inline-flex h-10 w-full items-center justify-center gap-2 border border-[var(--color-border)] bg-[var(--control-bg)] px-4 text-[0.78rem] font-medium text-[var(--color-text-secondary)] transition hover:border-[rgba(207,127,69,0.45)] hover:text-[var(--color-text-primary)] sm:w-auto sm:text-[0.8rem]"
                 >
                   <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M8 2v8m0 0L5 7m3 3 3-3M3 12h10" />
@@ -228,7 +228,7 @@ export function DashboardPage() {
                   Export
                 </button>
                 {exportOpen ? (
-                  <div className="absolute right-0 top-full z-20 mt-2 min-w-36 overflow-hidden border border-[var(--color-border)] bg-[rgba(10,12,15,0.98)] shadow-xl shadow-black/30 backdrop-blur-xl">
+                  <div className="absolute left-0 top-full z-20 mt-2 min-w-36 overflow-hidden border border-[var(--color-border)] bg-[rgba(10,12,15,0.98)] shadow-xl shadow-black/30 backdrop-blur-xl sm:left-auto sm:right-0">
                     <button
                       type="button"
                       onClick={() => handleExport('csv')}
@@ -253,7 +253,7 @@ export function DashboardPage() {
                   </div>
                 ) : null}
               </div>
-              <label className="inline-flex h-10 cursor-pointer items-center gap-2 border border-[rgba(207,127,69,0.42)] bg-[rgba(207,127,69,0.12)] px-4 text-[0.8rem] font-medium text-[var(--color-text-primary)] transition hover:bg-[rgba(207,127,69,0.18)]">
+              <label className="inline-flex h-10 w-full cursor-pointer items-center justify-center gap-2 border border-[rgba(207,127,69,0.42)] bg-[rgba(207,127,69,0.12)] px-4 text-[0.78rem] font-medium text-[var(--color-text-primary)] transition hover:bg-[rgba(207,127,69,0.18)] sm:w-auto sm:text-[0.8rem]">
                 <input
                   type="file"
                   accept=".bin,.BIN,.tlog,.TLOG"

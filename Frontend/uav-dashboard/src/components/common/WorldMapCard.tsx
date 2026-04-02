@@ -104,7 +104,7 @@ export function WorldMapCard({
           center={[startPoint.lat, startPoint.lng]}
           zoom={4}
           scrollWheelZoom
-          className="h-full min-h-72 w-full"
+          className="h-full min-h-64 w-full sm:min-h-72"
         >
           <TileLayer
             attribution={activeLayer.attribution}

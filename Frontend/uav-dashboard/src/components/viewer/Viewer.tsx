@@ -619,9 +619,9 @@ export const Viewer = forwardRef<ViewerHandle, ViewerProps>(function Viewer({
           </button>
         </div>
 
-        <div ref={containerRef} className="h-[34rem] overflow-hidden rounded border border-[#2a241d] bg-[#070b14]" />
+        <div ref={containerRef} className="h-[22rem] overflow-hidden rounded border border-[#2a241d] bg-[#070b14] sm:h-[28rem] xl:h-[34rem]" />
 
-        <div className="grid gap-3 border border-[#2a241d] bg-[#0b0c0e] p-4 lg:grid-cols-[minmax(0,1fr)_36rem] lg:items-end">
+        <div className="grid gap-3 border border-[#2a241d] bg-[#0b0c0e] p-3 sm:p-4 lg:grid-cols-[minmax(0,1fr)_36rem] lg:items-end">
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-3 font-mono text-[10px] uppercase tracking-[0.18em] text-[#586577]">
               <span>Timeline</span>

@@ -23,7 +23,7 @@ export function TimelinePanel({
             key={item.id}
             type="button"
             onClick={() => onSelectTime(item.time_s)}
-            className={`group flex w-full items-start justify-between gap-4 rounded-[1rem] border px-4 py-3 text-left transition ${
+            className={`group flex w-full flex-col items-start justify-between gap-3 rounded-[1rem] border px-3 py-3 text-left transition sm:flex-row sm:gap-4 sm:px-4 ${
               item.type === 'stage'
                 ? 'cursor-pointer border-[rgba(207,127,69,0.2)] bg-[rgba(207,127,69,0.07)] hover:border-[rgba(207,127,69,0.45)] hover:bg-[rgba(207,127,69,0.14)]'
                 : 'cursor-pointer border-transparent bg-[rgba(255,255,255,0.018)] hover:border-[var(--color-border)] hover:bg-[rgba(255,255,255,0.032)]'
@@ -36,11 +36,11 @@ export function TimelinePanel({
                     item.type === 'stage' ? 'bg-[var(--color-accent)]' : 'bg-[rgba(148,163,184,0.78)]'
                   }`}
                 />
-                <p className="text-[0.92rem] font-medium tracking-[-0.02em] text-[var(--color-text-primary)]">{item.title}</p>
+                <p className="text-[0.88rem] font-medium tracking-[-0.02em] text-[var(--color-text-primary)] sm:text-[0.92rem]">{item.title}</p>
               </div>
-              <p className="mt-2 pl-[1.4rem] text-[0.8rem] leading-relaxed text-[var(--color-text-secondary)]">{item.detail}</p>
+              <p className="mt-2 pl-[1.4rem] text-[0.76rem] leading-relaxed text-[var(--color-text-secondary)] sm:text-[0.8rem]">{item.detail}</p>
             </div>
-            <div className="flex shrink-0 flex-col items-end gap-2">
+            <div className="flex w-full shrink-0 flex-row items-center justify-between gap-2 sm:w-auto sm:flex-col sm:items-end">
               <span
                 className={`rounded-full px-2.5 py-1 font-mono text-[0.62rem] font-medium uppercase tracking-[0.18em] ${
                   item.type === 'stage'

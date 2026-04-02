@@ -11,7 +11,7 @@ export function MetricCard({ metric }: MetricCardProps) {
       <p className="pl-3 font-mono text-[0.62rem] font-medium uppercase tracking-[0.22em] text-[var(--color-text-muted)]">
         {metric.label}
       </p>
-      <p className="mt-3 pl-3 font-[var(--font-display)] text-[1.7rem] font-semibold tracking-[-0.05em] text-[var(--color-text-primary)]">
+      <p className="mt-3 pl-3 font-[var(--font-display)] text-[1.45rem] font-semibold tracking-[-0.05em] text-[var(--color-text-primary)] sm:text-[1.7rem]">
         {metric.value}
       </p>
       <p className="mt-2 max-w-[18rem] pl-3 text-[0.78rem] leading-relaxed text-[var(--color-text-secondary)]">
