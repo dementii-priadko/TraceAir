@@ -2,7 +2,7 @@
 
 This backend accepts ArduPilot `.BIN` flight logs, parses them into JSON, stores the parsed result on disk, and can generate a short LLM-based analysis for any saved flight.
 
-It is intentionally simple. There is no database, no auth, and no object storage layer. Everything is stored locally in the `storage/` folder so the service is easy to run during development and easy to inspect when something goes wrong.
+It is intentionally simple. There is no database, no auth, and no object storage layer. Everything is stored locally in the configured storage directory so the service is easy to run during development and easy to inspect when something goes wrong.
 
 ## What it does
 
@@ -14,7 +14,11 @@ If the same `.BIN` file is uploaded twice, the backend does not create a duplica
 
 ## Storage layout
 
-The service writes everything into `storage/`:
+By default the service writes everything into `storage/`.
+
+If `TRACEAIR_STORAGE_DIR` is set, that directory is used instead. In the Docker image it defaults to `/data/traceair` so uploads and parsed files can be mounted on a persistent volume and retained across deployments.
+
+The service writes:
 
 - `storage/index.json` is the manifest that maps file hashes to flight UUIDs.
 - `storage/uploads/{sha256}.bin` is the original uploaded file, stored by content hash.
@@ -26,6 +30,14 @@ That means:
 - raw uploads are deduplicated by file content
 - API-facing flight records stay stable by UUID
 - repeated analysis requests do not call Gemini again unless the cache file is removed
+
+For container deployments, mount `/data/traceair` to persistent storage. Example:
+
+```bash
+docker run -p 8000:8000 \
+  -v traceair-data:/data/traceair \
+  traceair-backend
+```
 
 ## Requirements
 
