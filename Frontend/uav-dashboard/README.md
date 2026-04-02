@@ -15,13 +15,14 @@ Built with:
 
 The app loads parsed flight telemetry from the backend and presents:
 - summary metrics
-- 3D viewer placeholder
-- velocity and altitude charts
-- mission stages and modes timeline
-- interactive world map with start and end markers
+- landing page with direct `.bin` / `.tlog` upload
+- 3D viewer with route replay and time scrubbing
+- speed and altitude charts
+- clickable mission stages and modes timeline
+- interactive ground track with map / satellite switch
 - backend-generated markdown analysis
-- export to CSV, XLSX, and raw JSON
-- `.BIN` upload flow to create and open a new flight
+- export to CSV, XLSX, raw JSON, Markdown, and PDF
+- uploaded file label surfaced in the dashboard header
 
 ## Requirements
 
@@ -98,12 +99,13 @@ No additional backend endpoints are required.
 
 ## Main UI Areas
 
-- Header with branding, export, and upload
+- Landing page with single-step file upload
+- Header with branding, active file label, export, and upload
 - Summary cards
-- 3D viewer placeholder
-- Velocity chart
+- 3D viewer
+- Speed chart
 - Stages and modes timeline
-- Interactive map
+- Ground track map
 - Altitude chart
 - Analysis summary
 
@@ -114,6 +116,8 @@ The export menu supports:
 - `CSV`: flattened GPS trajectory telemetry
 - `XLSX`: spreadsheet export of trajectory telemetry
 - `Raw JSON`: full flight payload exactly as currently loaded
+- `Markdown`: exported AI analysis summary
+- `PDF`: text-based AI analysis report with headings, lists, and inline emphasis
 
 ## Project Structure
 
@@ -137,13 +141,15 @@ src/
 ## Notes
 
 - If the backend is unavailable, the dashboard falls back to local mock data.
-- Analysis markdown is rendered on the frontend without adding a heavy markdown dependency.
+- Analysis markdown is rendered on the frontend with a lightweight custom renderer.
+- PDF export uses `jsPDF` and is lazy-loaded on demand.
 - The interactive map uses OpenStreetMap and Esri satellite tiles.
-- The current bundle is relatively large because of `xlsx` and map dependencies.
+- The dashboard stores uploaded file labels in `sessionStorage` so the UI can show the original filename instead of only the backend id.
+- The current bundle is still relatively large because of `xlsx`, map libraries, and PDF export dependencies.
 
 ## Next Reasonable Improvements
 
 - lazy-load map and xlsx export logic
 - add click-outside close behavior for the export dropdown
 - add upload progress and success state
-- replace viewer placeholder with the real Three.js scene when ready
+- reduce the main dashboard chunk further via route/component-level splitting

@@ -9,6 +9,7 @@ export type AnalysisPanelProps = {
   source: 'api' | 'mock'
   flightId: string
   firmwareLabel: string
+  fileLabel: string
 }
 
 export function AnalysisPanel({
@@ -17,6 +18,7 @@ export function AnalysisPanel({
   source,
   flightId,
   firmwareLabel,
+  fileLabel,
 }: AnalysisPanelProps) {
   let body = 'No analysis available for the current flight.'
 
@@ -40,7 +42,7 @@ export function AnalysisPanel({
             <button
               type="button"
               onClick={() =>
-                exportAnalysisMarkdown(analysis, flightId, firmwareLabel, source)
+                exportAnalysisMarkdown(analysis, flightId, firmwareLabel, fileLabel)
               }
               className="inline-flex h-9 items-center border border-[var(--color-border)] bg-[var(--control-bg)] px-3 text-[0.72rem] font-medium uppercase tracking-[0.12em] text-[var(--color-text-secondary)] transition hover:border-[rgba(207,127,69,0.4)] hover:text-[var(--color-text-primary)]"
             >
@@ -49,7 +51,7 @@ export function AnalysisPanel({
             <button
               type="button"
               onClick={() =>
-                exportAnalysisPdf(analysis, flightId, firmwareLabel, source)
+                exportAnalysisPdf(analysis, flightId, firmwareLabel, fileLabel)
               }
               className="inline-flex h-9 items-center border border-[rgba(207,127,69,0.32)] bg-[rgba(207,127,69,0.08)] px-3 text-[0.72rem] font-medium uppercase tracking-[0.12em] text-[var(--color-text-primary)] transition hover:bg-[rgba(207,127,69,0.14)]"
             >

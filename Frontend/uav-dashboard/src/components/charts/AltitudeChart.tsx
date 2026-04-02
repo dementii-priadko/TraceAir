@@ -13,13 +13,15 @@ import { SectionCard } from '../layout/SectionCard'
 
 export type AltitudeChartProps = {
   data: AltitudeChartPoint[]
+  className?: string
 }
 
-export function AltitudeChart({ data }: AltitudeChartProps) {
+export function AltitudeChart({ data, className = '' }: AltitudeChartProps) {
   return (
     <SectionCard
       title="Altitude"
       description="Altitude above mean sea level sampled from the GPS track."
+      className={className}
     >
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">

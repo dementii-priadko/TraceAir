@@ -6,6 +6,7 @@ import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import type { FlightEvent, FlightStage } from '../../types/flight'
 import type { ViewerFrame } from '../../utils/flightAdapters'
+import { resolveTileUrl, type MapStyle } from '../../utils/mapTiles'
 import {
   formatDuration,
   formatMeters,
@@ -47,14 +48,17 @@ type MapBounds = {
   maxLng: number
 }
 
-type TileMode = 'map' | 'satellite'
+type TileMode = MapStyle
 
 const MIN_GROUND_SIZE = 800
 const GROUND_PADDING_RATIO = 0.7
 const TILE_SIZE = 256
 const MAX_ALTITUDE_SCENE_RATIO = 0.35
-const MAX_TILE_COUNT = 36
-const MAX_CANVAS_PX = 8192
+const MAX_TILE_COUNT = 144
+const MAX_CANVAS_PX = 16384
+const MAP_BOUNDS_PADDING_RATIO = 0.32
+const MAP_BOUNDS_MIN_PADDING = 0.0022
+const SEEK_ANIMATION_MS = 700
 
 // ---------------------------------------------------------------------------
 // Stage color mapping by name (case-insensitive). Falls back by index.
@@ -72,16 +76,6 @@ function stageColor(stage: FlightStage): string {
 function stageColorByIndex(idx: number, stages: FlightStage[]): string {
   const s = stages.find((st) => st.stage === idx)
   return s ? stageColor(s) : '#64748b'
-}
-
-// ---------------------------------------------------------------------------
-// Tile URL builders
-// ---------------------------------------------------------------------------
-function tileUrl(mode: TileMode, z: number, x: number, y: number): string {
-  if (mode === 'satellite') {
-    return `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`
-  }
-  return `https://tile.openstreetmap.org/${z}/${x}/${y}.png`
 }
 
 // ---------------------------------------------------------------------------
@@ -108,6 +102,9 @@ function createFallbackGroundTexture(): THREE.CanvasTexture {
   }
   const t = new THREE.CanvasTexture(c)
   t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.ClampToEdgeWrapping; t.wrapT = THREE.ClampToEdgeWrapping
+  t.minFilter = THREE.LinearMipmapLinearFilter
+  t.magFilter = THREE.LinearFilter
+  t.generateMipmaps = true
   return t
 }
 
@@ -123,9 +120,8 @@ function getPaddedMapBounds(frames: ViewerFrame[]): MapBounds {
   const lats = frames.map((f) => f.lat), lngs = frames.map((f) => f.lng)
   const minLat = Math.min(...lats), maxLat = Math.max(...lats)
   const minLng = Math.min(...lngs), maxLng = Math.max(...lngs)
-  // Very wide padding so the map fills the whole viewport
-  const latPad = Math.max((maxLat - minLat) * 3, 0.012)
-  const lngPad = Math.max((maxLng - minLng) * 3, 0.012)
+  const latPad = Math.max((maxLat - minLat) * MAP_BOUNDS_PADDING_RATIO, MAP_BOUNDS_MIN_PADDING)
+  const lngPad = Math.max((maxLng - minLng) * MAP_BOUNDS_PADDING_RATIO, MAP_BOUNDS_MIN_PADDING)
   return { minLat: minLat - latPad, maxLat: maxLat + latPad, minLng: minLng - lngPad, maxLng: maxLng + lngPad }
 }
 
@@ -136,14 +132,30 @@ function latitudeToTile(lat: number, z: number) {
 }
 
 function pickTileZoom(bounds: MapBounds): number {
-  for (let z = 16; z >= 8; z--) {
+  for (let z = 18; z >= 8; z--) {
     const x0 = Math.floor(longitudeToTile(bounds.minLng, z))
     const x1 = Math.floor(longitudeToTile(bounds.maxLng, z))
     const y0 = Math.floor(latitudeToTile(bounds.maxLat, z))
     const y1 = Math.floor(latitudeToTile(bounds.minLat, z))
-    if ((x1 - x0 + 1) * (y1 - y0 + 1) <= MAX_TILE_COUNT) return z
+    const tileCount = (x1 - x0 + 1) * (y1 - y0 + 1)
+    const widthPx = (x1 - x0 + 1) * TILE_SIZE
+    const heightPx = (y1 - y0 + 1) * TILE_SIZE
+    if (tileCount <= MAX_TILE_COUNT && widthPx <= MAX_CANVAS_PX && heightPx <= MAX_CANVAS_PX) return z
   }
   return 8
+}
+
+function applyTextureQuality(texture: THREE.Texture, renderer?: THREE.WebGLRenderer) {
+  texture.colorSpace = THREE.SRGBColorSpace
+  texture.wrapS = THREE.ClampToEdgeWrapping
+  texture.wrapT = THREE.ClampToEdgeWrapping
+  texture.minFilter = THREE.LinearMipmapLinearFilter
+  texture.magFilter = THREE.LinearFilter
+  texture.generateMipmaps = true
+  if (renderer) {
+    texture.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 8)
+  }
+  texture.needsUpdate = true
 }
 
 function loadTileImage(url: string): Promise<HTMLImageElement> {
@@ -154,7 +166,10 @@ function loadTileImage(url: string): Promise<HTMLImageElement> {
   })
 }
 
-async function createSectorTexture(bounds: MapBounds, mode: TileMode): Promise<THREE.CanvasTexture | null> {
+async function createSectorTexture(
+  bounds: MapBounds,
+  mode: TileMode,
+): Promise<THREE.CanvasTexture | null> {
   const zoom = pickTileZoom(bounds)
   const xS = Math.floor(longitudeToTile(bounds.minLng, zoom))
   const xE = Math.floor(longitudeToTile(bounds.maxLng, zoom))
@@ -167,15 +182,19 @@ async function createSectorTexture(bounds: MapBounds, mode: TileMode): Promise<T
   const ctx = tmp.getContext('2d'); if (!ctx) return null
 
   const jobs: Promise<void>[] = []
+  let loadedTileCount = 0
   for (let tx = xS; tx <= xE; tx++) {
     for (let ty = yS; ty <= yE; ty++) {
-      const url = tileUrl(mode, zoom, tx, ty)
+      const url = resolveTileUrl(mode, zoom, tx, ty)
       jobs.push(loadTileImage(url).then((img) => {
+        loadedTileCount += 1
         ctx.drawImage(img, (tx - xS) * TILE_SIZE, (ty - yS) * TILE_SIZE, TILE_SIZE, TILE_SIZE)
       }).catch(() => {})) // skip failed tiles silently
     }
   }
   await Promise.all(jobs)
+
+  if (loadedTileCount === 0) return null
 
   // Crop to exact bounds
   const cl = (longitudeToTile(bounds.minLng, zoom) - xS) * TILE_SIZE
@@ -193,8 +212,7 @@ async function createSectorTexture(bounds: MapBounds, mode: TileMode): Promise<T
   out.fillRect(0, 0, cw, ch)
 
   const texture = new THREE.CanvasTexture(canvas)
-  texture.colorSpace = THREE.SRGBColorSpace
-  texture.wrapS = THREE.ClampToEdgeWrapping; texture.wrapT = THREE.ClampToEdgeWrapping
+  applyTextureQuality(texture)
   return texture
 }
 
@@ -243,7 +261,7 @@ function createArrowheadDrone(): THREE.Group {
   const drone = new THREE.Group()
   const cone = new THREE.Mesh(new THREE.ConeGeometry(3, 10, 3), new THREE.MeshBasicMaterial({ color: '#ffffff' }))
   cone.rotation.x = Math.PI / 2; drone.add(cone)
-  drone.scale.setScalar(0.9)
+  drone.scale.setScalar(1.5)
   return drone
 }
 
@@ -301,7 +319,9 @@ export const Viewer = forwardRef<ViewerHandle, ViewerProps>(function Viewer({
   const containerRef = useRef<HTMLDivElement | null>(null)
   const sceneRef = useRef<SceneHandles | null>(null)
   const [currentTime, setCurrentTime] = useState(frames[0]?.time_s ?? 0)
-  const [tileMode, setTileMode] = useState<TileMode>('map')
+  const [tileMode, setTileMode] = useState<TileMode>('osm')
+  const currentTimeRef = useRef(currentTime)
+  const seekAnimationRef = useRef<number | null>(null)
 
   const sceneModel = useMemo(() => {
     if (frames.length === 0) return null
@@ -331,14 +351,67 @@ export const Viewer = forwardRef<ViewerHandle, ViewerProps>(function Viewer({
   const sliderStep = frames.length > 1 ? Math.max((maxTime - minTime) / 2000, 0.001) : 0.01
 
   useEffect(() => {
-    setCurrentTime(frames[0]?.time_s ?? 0)
+    currentTimeRef.current = currentTime
+  }, [currentTime])
+
+  useEffect(() => {
+    return () => {
+      if (seekAnimationRef.current !== null) {
+        cancelAnimationFrame(seekAnimationRef.current)
+      }
+    }
+  }, [])
+
+  function stopSeekAnimation() {
+    if (seekAnimationRef.current !== null) {
+      cancelAnimationFrame(seekAnimationRef.current)
+      seekAnimationRef.current = null
+    }
+  }
+
+  function setTimeImmediate(time: number) {
+    stopSeekAnimation()
+    setCurrentTime(clamp(time, minTime, maxTime))
+  }
+
+  function animateToTime(targetTime: number) {
+    const boundedTarget = clamp(targetTime, minTime, maxTime)
+    const startTime = currentTimeRef.current
+
+    stopSeekAnimation()
+    if (Math.abs(boundedTarget - startTime) < sliderStep) {
+      setCurrentTime(boundedTarget)
+      return
+    }
+
+    const startedAt = performance.now()
+    const tick = (now: number) => {
+      const progress = clamp((now - startedAt) / SEEK_ANIMATION_MS, 0, 1)
+      const eased = 1 - (1 - progress) ** 3
+      const nextTime = lerp(startTime, boundedTarget, eased)
+      setCurrentTime(nextTime)
+
+      if (progress < 1) {
+        seekAnimationRef.current = requestAnimationFrame(tick)
+        return
+      }
+
+      seekAnimationRef.current = null
+      setCurrentTime(boundedTarget)
+    }
+
+    seekAnimationRef.current = requestAnimationFrame(tick)
+  }
+
+  useEffect(() => {
+    setTimeImmediate(frames[0]?.time_s ?? 0)
   }, [frames])
 
   useImperativeHandle(ref, () => ({
     seekTo(time: number) {
-      setCurrentTime(clamp(time, minTime, maxTime))
+      animateToTime(time)
     },
-  }), [maxTime, minTime])
+  }), [maxTime, minTime, sliderStep])
 
   // ---- Scene setup --------------------------------------------------------
   useEffect(() => {
@@ -452,6 +525,7 @@ export const Viewer = forwardRef<ViewerHandle, ViewerProps>(function Viewer({
     let disposed = false
     void createSectorTexture(sceneModel.bounds, tileMode).then((tex) => {
       if (!tex || disposed) return
+      applyTextureQuality(tex, renderer)
       fallbackTex.dispose(); groundMat.map = tex; groundMat.needsUpdate = true
     }).catch(() => {})
 
@@ -488,6 +562,7 @@ export const Viewer = forwardRef<ViewerHandle, ViewerProps>(function Viewer({
     let cancelled = false
     void createSectorTexture(sceneModel.bounds, tileMode).then((tex) => {
       if (!tex || cancelled || !sceneRef.current) return
+      applyTextureQuality(tex, sceneRef.current.renderer)
       groundMaterial.map?.dispose()
       groundMaterial.map = tex
       groundMaterial.needsUpdate = true
@@ -523,9 +598,9 @@ export const Viewer = forwardRef<ViewerHandle, ViewerProps>(function Viewer({
         {/* Tile mode toggle */}
         <div className="flex items-center justify-end gap-1 px-1">
           <button
-            onClick={() => setTileMode('map')}
+            onClick={() => setTileMode('osm')}
             className={`rounded px-2.5 py-1 text-[11px] font-medium transition ${
-              tileMode === 'map'
+              tileMode === 'osm'
                 ? 'bg-[rgba(207,127,69,0.12)] text-[#cf7f45]'
                 : 'text-[#586577] hover:text-[#8694a8]'
             }`}
@@ -554,7 +629,7 @@ export const Viewer = forwardRef<ViewerHandle, ViewerProps>(function Viewer({
             </div>
             <input
               type="range" min={minTime} max={maxTime} step={sliderStep} value={currentTime}
-              onChange={(e) => setCurrentTime(Number(e.target.value))}
+              onChange={(e) => setTimeImmediate(Number(e.target.value))}
               className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-[#1a2030] accent-[#cf7f45]"
             />
           </div>

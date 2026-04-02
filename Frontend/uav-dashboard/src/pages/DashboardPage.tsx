@@ -27,13 +27,40 @@ import {
 } from '../utils/export'
 
 const mockFlight = flightData as unknown as FlightLog
+const FLIGHT_FILE_LABEL_STORAGE_KEY = 'traceair-flight-file-labels'
 
 type DataSource = 'api' | 'mock'
+
+function readStoredFlightLabels(): Record<string, string> {
+  try {
+    const raw = window.sessionStorage.getItem(FLIGHT_FILE_LABEL_STORAGE_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw) as unknown
+    return parsed && typeof parsed === 'object' ? parsed as Record<string, string> : {}
+  } catch {
+    return {}
+  }
+}
+
+function storeFlightLabel(flightId: string, fileLabel: string) {
+  if (!flightId.trim() || !fileLabel.trim()) return
+
+  const nextLabels = {
+    ...readStoredFlightLabels(),
+    [flightId]: fileLabel,
+  }
+
+  window.sessionStorage.setItem(
+    FLIGHT_FILE_LABEL_STORAGE_KEY,
+    JSON.stringify(nextLabels),
+  )
+}
 
 export function DashboardPage() {
   const [flight, setFlight] = useState<FlightLog>(mockFlight)
   const [analysis, setAnalysis] = useState<FlightAnalysis | null>(mockAnalysis)
   const [dataSource, setDataSource] = useState<DataSource>('mock')
+  const [selectedFileLabel, setSelectedFileLabel] = useState('mockFlight.json')
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
@@ -101,8 +128,10 @@ export function DashboardPage() {
     setUploadError(null)
 
     try {
+      setSelectedFileLabel(file.name)
       const response = await uploadFlight(file)
       const nextFlightId = response.id
+      storeFlightLabel(nextFlightId, file.name)
       const url = new URL(window.location.href)
       url.searchParams.set('flightId', nextFlightId)
       window.history.replaceState({}, '', url)
@@ -147,6 +176,15 @@ export function DashboardPage() {
   const viewerFrames = adaptViewerFrames(flight)
   const worldMapPoints = adaptWorldMapPoints(flight)
   const firmwareLabel = flight.meta.firmware.replace(/\s*\([^)]*\)\s*$/, '')
+  const storedFlightLabel = currentFlightId
+    ? readStoredFlightLabels()[currentFlightId] ?? ''
+    : ''
+  const activeFlightLabel =
+    dataSource === 'mock'
+      ? selectedFileLabel
+      : selectedFileLabel !== 'mockFlight.json'
+        ? selectedFileLabel
+        : storedFlightLabel || 'Uploaded flight log'
 
   return (
     <main className="min-h-screen bg-transparent text-[var(--color-text-primary)]">
@@ -166,6 +204,10 @@ export function DashboardPage() {
                 </p>
               </div>
               <div className="grid gap-px border border-[var(--color-border)] bg-[var(--color-border)] text-[0.78rem] text-[var(--color-text-secondary)] sm:max-w-xs">
+                <div className="bg-[rgba(255,255,255,0.02)] px-3 py-2">
+                  File
+                  <div className="mt-1 truncate text-[var(--color-text-primary)]">{activeFlightLabel}</div>
+                </div>
                 <div className="bg-[rgba(255,255,255,0.02)] px-3 py-2">
                   Firmware
                   <div className="mt-1 text-[var(--color-text-primary)]">{firmwareLabel}</div>
@@ -238,26 +280,29 @@ export function DashboardPage() {
         <SummaryCards metrics={summaryMetrics} />
 
         <section className="grid gap-4">
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(360px,1fr)]">
-            <Viewer
-              ref={viewerRef}
-              frames={viewerFrames}
-              stages={flight.stages}
-              events={flight.events}
-              className="h-full"
-            />
-            <div className="flex flex-col gap-3">
-              <SpeedChart data={speedChartData} />
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(360px,1fr)] xl:items-stretch">
+            <div className="flex h-full min-h-0 flex-col gap-4">
+              <Viewer
+                ref={viewerRef}
+                frames={viewerFrames}
+                stages={flight.stages}
+                events={flight.events}
+              />
+              <WorldMapCard
+                points={worldMapPoints}
+                className="flex min-h-0 flex-1 flex-col"
+                contentClassName="flex-1 min-h-0"
+              />
+            </div>
+
+            <div className="flex flex-col gap-4">
               <TimelinePanel
                 items={timelineItems}
                 onSelectTime={handleTimelineSelect}
               />
+              <SpeedChart data={speedChartData} />
+              <AltitudeChart data={altitudeChartData} />
             </div>
-          </div>
-
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(360px,1fr)]">
-            <WorldMapCard points={worldMapPoints} />
-            <AltitudeChart data={altitudeChartData} />
           </div>
 
           <AnalysisPanel
@@ -266,6 +311,7 @@ export function DashboardPage() {
             source={dataSource}
             flightId={currentFlightId}
             firmwareLabel={firmwareLabel}
+            fileLabel={activeFlightLabel}
           />
         </section>
       </div>

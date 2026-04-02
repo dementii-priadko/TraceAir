@@ -8,26 +8,13 @@ import {
   useMap,
 } from 'react-leaflet'
 import type { WorldMapData } from '../../utils/flightAdapters'
+import { tileLayers, type MapStyle } from '../../utils/mapTiles'
 import { SectionCard } from '../layout/SectionCard'
 
 export type WorldMapCardProps = {
   points: WorldMapData
-}
-
-type MapStyle = 'osm' | 'satellite'
-
-const tileLayers: Record<
-  MapStyle,
-  { attribution: string; url: string }
-> = {
-  osm: {
-    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    attribution: '&copy; OpenStreetMap contributors',
-  },
-  satellite: {
-    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    attribution: 'Tiles &copy; Esri',
-  },
+  className?: string
+  contentClassName?: string
 }
 
 function createMarkerIcon(label: string, tone: 'start' | 'end') {
@@ -68,7 +55,11 @@ function FitToPoints({ points }: FitToPointsProps) {
   return null
 }
 
-export function WorldMapCard({ points }: WorldMapCardProps) {
+export function WorldMapCard({
+  points,
+  className = '',
+  contentClassName = '',
+}: WorldMapCardProps) {
   const { route, startPoint, endPoint } = points
   const [mapStyle, setMapStyle] = useState<MapStyle>('osm')
   const activeLayer = tileLayers[mapStyle]
@@ -79,6 +70,8 @@ export function WorldMapCard({ points }: WorldMapCardProps) {
     <SectionCard
       title="Ground Track"
       description="The GPS route projected onto a geographic base layer with launch and terminal markers."
+      className={className}
+      contentClassName={contentClassName}
       actions={
         <div className="flex items-center gap-px border border-[var(--color-border)] bg-[var(--color-border)]">
           <button
@@ -106,14 +99,18 @@ export function WorldMapCard({ points }: WorldMapCardProps) {
         </div>
       }
     >
-      <div className="overflow-hidden border border-[var(--color-border)] bg-[rgba(0,0,0,0.12)]">
+      <div className="h-full overflow-hidden border border-[var(--color-border)] bg-[rgba(0,0,0,0.12)]">
         <MapContainer
           center={[startPoint.lat, startPoint.lng]}
           zoom={4}
           scrollWheelZoom
-          className="h-72 w-full"
+          className="h-full min-h-72 w-full"
         >
-          <TileLayer attribution={activeLayer.attribution} url={activeLayer.url} />
+          <TileLayer
+            attribution={activeLayer.attribution}
+            url={activeLayer.url}
+            subdomains={activeLayer.subdomains}
+          />
           <FitToPoints points={route} />
           <Polyline
             positions={route}
