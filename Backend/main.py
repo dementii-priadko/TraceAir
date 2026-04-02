@@ -2,7 +2,9 @@ import hashlib
 import json
 import os
 from pathlib import Path
-from threading import Lock
+from threading import Lock, Thread
+from time import time
+from typing import Callable
 from uuid import uuid4
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
@@ -18,6 +20,7 @@ STORAGE_DIR = Path(os.getenv("TRACEAIR_STORAGE_DIR", str(DEFAULT_STORAGE_DIR))).
 UPLOADS_DIR = STORAGE_DIR / "uploads"
 INDEX_PATH = STORAGE_DIR / "index.json"
 DEFAULT_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+UploadProgressCallback = Callable[[float, str], None]
 
 
 class FlightStore:
@@ -62,8 +65,15 @@ class FlightStore:
         attitude = payload.get("attitude")
         return isinstance(attitude, list) and bool(attitude)
 
-    def save_upload(self, filename: str, contents: bytes) -> str:
+    def save_upload(
+        self,
+        filename: str,
+        contents: bytes,
+        progress_callback: UploadProgressCallback | None = None,
+    ) -> str:
         file_hash = hashlib.sha256(contents).hexdigest()
+        if progress_callback:
+            progress_callback(0.08, "Checking existing uploads")
 
         with self._lock:
             index = self._read_index()
@@ -79,6 +89,8 @@ class FlightStore:
                         existing_payload = None
 
                 if self._is_valid_flight_payload(existing_payload):
+                    if progress_callback:
+                        progress_callback(1.0, "Flight already processed")
                     return existing_id
 
                 index["hash_to_id"].pop(file_hash, None)
@@ -93,8 +105,12 @@ class FlightStore:
 
             try:
                 if not upload_path.exists():
+                    if progress_callback:
+                        progress_callback(0.16, "Saving uploaded file")
                     upload_path.write_bytes(contents)
-                parsed = parse_flight_log(str(upload_path))
+                parsed = parse_flight_log(str(upload_path), progress_callback=progress_callback)
+                if progress_callback:
+                    progress_callback(0.96, "Writing parsed result")
                 json_path.write_text(json.dumps(parsed, indent=2), encoding="utf-8")
             except Exception:
                 upload_path.unlink(missing_ok=True)
@@ -109,6 +125,8 @@ class FlightStore:
                 "json_path": json_path.name,
             }
             self._write_index(index)
+            if progress_callback:
+                progress_callback(1.0, "Flight ready")
             return flight_id
 
     def get_flight(self, flight_id: str) -> dict | None:
@@ -125,6 +143,60 @@ class FlightStore:
 
     def save_analysis(self, flight_id: str, analysis: dict) -> None:
         self._analysis_path(flight_id).write_text(json.dumps(analysis, indent=2), encoding="utf-8")
+
+
+class UploadJobStore:
+    def __init__(self) -> None:
+        self._lock = Lock()
+        self._jobs: dict[str, dict] = {}
+
+    def create(self, filename: str) -> str:
+        job_id = str(uuid4())
+        now = time()
+        with self._lock:
+            self._jobs[job_id] = {
+                "id": job_id,
+                "filename": filename,
+                "status": "queued",
+                "stage": "Queued",
+                "progress": 0,
+                "flight_id": None,
+                "error": None,
+                "created_at": now,
+                "updated_at": now,
+            }
+        return job_id
+
+    def update(
+        self,
+        job_id: str,
+        *,
+        status: str | None = None,
+        stage: str | None = None,
+        progress: int | None = None,
+        flight_id: str | None = None,
+        error: str | None = None,
+    ) -> None:
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if job is None:
+                return
+            if status is not None:
+                job["status"] = status
+            if stage is not None:
+                job["stage"] = stage
+            if progress is not None:
+                job["progress"] = max(0, min(progress, 100))
+            if flight_id is not None:
+                job["flight_id"] = flight_id
+            if error is not None:
+                job["error"] = error
+            job["updated_at"] = time()
+
+    def get(self, job_id: str) -> dict | None:
+        with self._lock:
+            job = self._jobs.get(job_id)
+            return dict(job) if job is not None else None
 
 
 def build_analysis_prompt(flight_id: str, flight_data: dict) -> str:
@@ -184,6 +256,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 store = FlightStore(STORAGE_DIR, UPLOADS_DIR, INDEX_PATH)
+upload_jobs = UploadJobStore()
 
 
 @app.get("/")
@@ -196,13 +269,77 @@ async def upload_flight(file: UploadFile = File(...)):
     contents = await file.read()
     if not contents:
         raise HTTPException(status_code=400, detail="Uploaded file is empty")
+    filename = file.filename or "upload.bin"
+    job_id = upload_jobs.create(filename)
+    upload_jobs.update(job_id, status="processing", stage="Upload received", progress=10)
 
-    try:
-        flight_id = store.save_upload(file.filename or "upload.bin", contents)
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Failed to parse flight log: {exc}") from exc
+    def run_job() -> None:
+        def on_progress(progress_value: float, stage_label: str) -> None:
+            mapped_progress = 10 + int(round(max(0.0, min(progress_value, 1.0)) * 78))
+            upload_jobs.update(
+                job_id,
+                status="processing",
+                stage=stage_label,
+                progress=mapped_progress,
+            )
 
-    return {"id": flight_id}
+        try:
+            flight_id = store.save_upload(
+                filename,
+                contents,
+                progress_callback=on_progress,
+            )
+
+            upload_jobs.update(
+                job_id,
+                status="processing",
+                stage="Generating analysis",
+                progress=92,
+            )
+
+            flight = store.get_flight(flight_id)
+            if flight is None:
+                raise RuntimeError("Parsed flight payload was not found after upload")
+
+            cached = store.get_cached_analysis(flight_id)
+            if cached is None:
+                analysis = generate_analysis(flight_id, flight)
+                store.save_analysis(flight_id, analysis)
+
+            upload_jobs.update(
+                job_id,
+                status="processing",
+                stage="Finalizing dashboard",
+                progress=98,
+            )
+        except Exception as exc:
+            upload_jobs.update(
+                job_id,
+                status="failed",
+                stage="Processing failed",
+                progress=100,
+                error=f"Failed to parse flight log: {exc}",
+            )
+            return
+
+        upload_jobs.update(
+            job_id,
+            status="completed",
+            stage="Flight ready",
+            progress=100,
+            flight_id=flight_id,
+        )
+
+    Thread(target=run_job, daemon=True).start()
+    return {"job_id": job_id}
+
+
+@app.get("/api/uploads/{job_id}")
+async def get_upload_status(job_id: str):
+    job = upload_jobs.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Upload job not found")
+    return job
 
 
 @app.get("/api/flights/{flight_id}")

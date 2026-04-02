@@ -8,9 +8,8 @@ import { TimelinePanel } from '../components/events/TimelinePanel'
 import { SummaryCards } from '../components/summary/SummaryCards'
 import { Viewer } from '../components/viewer/Viewer'
 import type { ViewerHandle } from '../components/viewer/Viewer'
-import { mockAnalysis } from '../data/mockAnalysis'
-import flightData from '../data/mockFlight.json'
-import { getFlight, getFlightAnalysis, uploadFlight } from '../services/flightService'
+import { useSmoothProgress } from '../hooks/useSmoothProgress'
+import { getFlight, getFlightAnalysis, getUploadStatus, uploadFlight } from '../services/flightService'
 import type { FlightAnalysis, FlightLog } from '../types/flight'
 import {
   adaptAltitudeChartData,
@@ -25,44 +24,18 @@ import {
   exportFlightTrajectoryCsv,
   exportFlightTrajectoryXlsx,
 } from '../utils/export'
-
-const mockFlight = flightData as unknown as FlightLog
-const FLIGHT_FILE_LABEL_STORAGE_KEY = 'traceair-flight-file-labels'
-
-type DataSource = 'api' | 'mock'
-
-function readStoredFlightLabels(): Record<string, string> {
-  try {
-    const raw = window.sessionStorage.getItem(FLIGHT_FILE_LABEL_STORAGE_KEY)
-    if (!raw) return {}
-    const parsed = JSON.parse(raw) as unknown
-    return parsed && typeof parsed === 'object' ? parsed as Record<string, string> : {}
-  } catch {
-    return {}
-  }
-}
-
-function storeFlightLabel(flightId: string, fileLabel: string) {
-  if (!flightId.trim() || !fileLabel.trim()) return
-
-  const nextLabels = {
-    ...readStoredFlightLabels(),
-    [flightId]: fileLabel,
-  }
-
-  window.sessionStorage.setItem(
-    FLIGHT_FILE_LABEL_STORAGE_KEY,
-    JSON.stringify(nextLabels),
-  )
-}
+import { readStoredFlightLabels, storeFlightLabel } from '../utils/flightLabels'
 
 export function DashboardPage() {
-  const [flight, setFlight] = useState<FlightLog>(mockFlight)
-  const [analysis, setAnalysis] = useState<FlightAnalysis | null>(mockAnalysis)
-  const [dataSource, setDataSource] = useState<DataSource>('mock')
-  const [selectedFileLabel, setSelectedFileLabel] = useState('mockFlight.json')
+  const [flight, setFlight] = useState<FlightLog | null>(null)
+  const [analysis, setAnalysis] = useState<FlightAnalysis | null>(null)
+  const [selectedFileLabel, setSelectedFileLabel] = useState('')
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [processingProgress, setProcessingProgress] = useState(0)
+  const [processingStage, setProcessingStage] = useState('')
+  const displayProcessingProgress = useSmoothProgress(processingProgress, uploading)
   const [exportOpen, setExportOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
@@ -89,20 +62,29 @@ export function DashboardPage() {
 
         setFlight(apiFlight)
         setAnalysis(apiAnalysis)
-        setDataSource('api')
       } catch (requestError) {
         if (abortController.signal.aborted) {
           return
         }
 
-        setFlight(mockFlight)
-        setAnalysis(mockAnalysis)
-        setDataSource('mock')
-        setError(
+        const requestMessage =
           requestError instanceof Error
             ? requestError.message
-            : 'Backend request failed',
-        )
+            : 'Backend request failed'
+
+        if (currentFlightId && /(?:^|\b)(404|not found)(?:\b|$)/i.test(requestMessage)) {
+          const url = new URL(window.location.href)
+          url.searchParams.delete('flightId')
+          url.searchParams.delete('flightid')
+          url.searchParams.set('error', 'file-not-found')
+          window.history.replaceState({}, '', url)
+          window.dispatchEvent(new PopStateEvent('popstate'))
+          return
+        }
+
+        setFlight(null)
+        setAnalysis(null)
+        setError(requestMessage)
       } finally {
         if (!abortController.signal.aborted) {
           setLoading(false)
@@ -126,16 +108,40 @@ export function DashboardPage() {
 
     setUploading(true)
     setUploadError(null)
+    setUploadProgress(0)
+    setProcessingProgress(0)
+    setProcessingStage('Uploading flight log')
 
     try {
       setSelectedFileLabel(file.name)
-      const response = await uploadFlight(file)
-      const nextFlightId = response.id
-      storeFlightLabel(nextFlightId, file.name)
-      const url = new URL(window.location.href)
-      url.searchParams.set('flightId', nextFlightId)
-      window.history.replaceState({}, '', url)
-      window.dispatchEvent(new PopStateEvent('popstate'))
+      const response = await uploadFlight(file, setUploadProgress)
+
+      let attempts = 0
+      while (attempts < 600) {
+        const status = await getUploadStatus(response.job_id)
+        setProcessingStage(status.stage)
+        setProcessingProgress(status.progress)
+
+        if (status.status === 'completed' && status.flight_id) {
+          const nextFlightId = status.flight_id
+          setProcessingProgress(100)
+          storeFlightLabel(nextFlightId, file.name)
+          const url = new URL(window.location.href)
+          url.searchParams.set('flightId', nextFlightId)
+          window.history.replaceState({}, '', url)
+          window.dispatchEvent(new PopStateEvent('popstate'))
+          return
+        }
+
+        if (status.status === 'failed') {
+          throw new Error(status.error || 'Flight processing failed')
+        }
+
+        await new Promise((resolve) => window.setTimeout(resolve, 700))
+        attempts += 1
+      }
+
+      throw new Error('Flight processing timed out')
     } catch (uploadRequestError) {
       setUploadError(
         uploadRequestError instanceof Error
@@ -145,10 +151,17 @@ export function DashboardPage() {
     } finally {
       event.target.value = ''
       setUploading(false)
+      setUploadProgress(0)
+      setProcessingProgress(0)
+      setProcessingStage('')
     }
   }
 
   function handleExport(format: 'csv' | 'xlsx' | 'raw') {
+    if (!flight) {
+      return
+    }
+
     if (format === 'csv') {
       exportFlightTrajectoryCsv(flight, currentFlightId, firmwareLabel)
       setExportOpen(false)
@@ -169,22 +182,20 @@ export function DashboardPage() {
     viewerRef.current?.seekTo(time_s)
   }
 
-  const summaryMetrics = adaptSummaryMetrics(flight)
-  const altitudeChartData = adaptAltitudeChartData(flight)
-  const speedChartData = adaptSpeedChartData(flight)
-  const timelineItems = adaptTimelineItems(flight)
-  const viewerFrames = adaptViewerFrames(flight)
-  const worldMapPoints = adaptWorldMapPoints(flight)
-  const firmwareLabel = flight.meta.firmware.replace(/\s*\([^)]*\)\s*$/, '')
+  const summaryMetrics = flight ? adaptSummaryMetrics(flight) : []
+  const altitudeChartData = flight ? adaptAltitudeChartData(flight) : []
+  const speedChartData = flight ? adaptSpeedChartData(flight) : []
+  const timelineItems = flight ? adaptTimelineItems(flight) : []
+  const viewerFrames = flight ? adaptViewerFrames(flight) : []
+  const worldMapPoints = flight ? adaptWorldMapPoints(flight) : null
+  const firmwareLabel = flight
+    ? flight.meta.firmware.replace(/\s*\([^)]*\)\s*$/, '')
+    : 'Unavailable'
   const storedFlightLabel = currentFlightId
     ? readStoredFlightLabels()[currentFlightId] ?? ''
     : ''
   const activeFlightLabel =
-    dataSource === 'mock'
-      ? selectedFileLabel
-      : selectedFileLabel !== 'mockFlight.json'
-        ? selectedFileLabel
-        : storedFlightLabel || 'Uploaded flight log'
+    selectedFileLabel || storedFlightLabel || 'Uploaded flight log'
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-transparent text-[var(--color-text-primary)]">
@@ -271,49 +282,91 @@ export function DashboardPage() {
           <p className="border border-rose-500/20 bg-rose-500/8 px-4 py-3 text-[0.84rem] text-rose-200">{uploadError}</p>
         ) : null}
 
-        {error ? (
-          <div className="border border-amber-500/16 bg-amber-500/[0.06] px-4 py-3 text-[0.84rem] text-amber-100/85">
-            Using local mock data — {error}
-          </div>
+        {uploading ? (
+          <section className="border border-[var(--color-border)] bg-[rgba(255,255,255,0.02)] px-4 py-4 sm:px-6">
+            <div className="grid gap-3 lg:grid-cols-2">
+              <div className="space-y-1">
+                <div className="flex items-center justify-between gap-3 font-mono text-[0.68rem] uppercase tracking-[0.18em] text-[var(--color-text-muted)]">
+                  <span>Upload</span>
+                  <span>{uploadProgress}%</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-[rgba(255,255,255,0.06)]">
+                  <div
+                    className="h-full bg-[linear-gradient(90deg,rgba(207,127,69,0.82),rgba(231,183,140,0.92))] transition-[width] duration-300"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center justify-between gap-3 font-mono text-[0.68rem] uppercase tracking-[0.18em] text-[var(--color-text-muted)]">
+                  <span>{processingStage || 'Processing flight log'}</span>
+                  <span>{displayProcessingProgress}%</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-[rgba(255,255,255,0.06)]">
+                  <div
+                    className="h-full bg-[linear-gradient(90deg,rgba(117,84,54,0.86),rgba(207,127,69,0.96))] transition-[width] duration-500"
+                    style={{ width: `${displayProcessingProgress}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          </section>
         ) : null}
 
-        <SummaryCards metrics={summaryMetrics} />
+        {error && !flight ? (
+          <section className="border border-amber-500/16 bg-amber-500/[0.06] px-5 py-5 text-amber-100/85 sm:px-6">
+            <p className="font-medium text-[var(--color-text-primary)]">Flight data could not be loaded.</p>
+            <p className="mt-2 text-[0.9rem] leading-relaxed">
+              {error}
+            </p>
+            <p className="mt-2 text-[0.84rem] text-amber-100/75">
+              Upload a valid `.bin` or `.tlog` file to open a real mission instead of a placeholder dataset.
+            </p>
+          </section>
+        ) : null}
 
-        <section className="grid gap-4">
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(360px,1fr)] xl:items-stretch">
-            <div className="flex h-full min-h-0 flex-col gap-4">
-              <Viewer
-                ref={viewerRef}
-                frames={viewerFrames}
-                stages={flight.stages}
-                events={flight.events}
-              />
-              <WorldMapCard
-                points={worldMapPoints}
-                className="flex min-h-0 flex-1 flex-col"
-                contentClassName="flex-1 min-h-0"
-              />
-            </div>
+        {flight ? (
+          <>
+            <SummaryCards metrics={summaryMetrics} />
 
-            <div className="flex flex-col gap-4">
-              <TimelinePanel
-                items={timelineItems}
-                onSelectTime={handleTimelineSelect}
-              />
-              <SpeedChart data={speedChartData} />
-              <AltitudeChart data={altitudeChartData} />
-            </div>
-          </div>
+            <section className="grid gap-4">
+              <div className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(360px,1fr)] xl:items-stretch">
+                <div className="flex h-full min-h-0 flex-col gap-4">
+                  <Viewer
+                    ref={viewerRef}
+                    frames={viewerFrames}
+                    stages={flight.stages}
+                    events={flight.events}
+                  />
+                  {worldMapPoints ? (
+                    <WorldMapCard
+                      points={worldMapPoints}
+                      className="flex min-h-0 flex-1 flex-col"
+                      contentClassName="flex-1 min-h-0"
+                    />
+                  ) : null}
+                </div>
 
-          <AnalysisPanel
-            analysis={analysis}
-            loading={loading}
-            source={dataSource}
-            flightId={currentFlightId}
-            firmwareLabel={firmwareLabel}
-            fileLabel={activeFlightLabel}
-          />
-        </section>
+                <div className="flex flex-col gap-4">
+                  <TimelinePanel
+                    items={timelineItems}
+                    onSelectTime={handleTimelineSelect}
+                  />
+                  <SpeedChart data={speedChartData} />
+                  <AltitudeChart data={altitudeChartData} />
+                </div>
+              </div>
+
+              <AnalysisPanel
+                analysis={analysis}
+                loading={loading}
+                flightId={currentFlightId}
+                firmwareLabel={firmwareLabel}
+                fileLabel={activeFlightLabel}
+              />
+            </section>
+          </>
+        ) : null}
       </div>
     </main>
   )

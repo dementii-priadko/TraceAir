@@ -12,6 +12,16 @@ function getFlightIdFromLocation(): string {
   )
 }
 
+function getLandingErrorFromLocation(): string | null {
+  const errorCode = new URLSearchParams(window.location.search).get('error')?.trim()
+
+  if (errorCode === 'file-not-found') {
+    return 'The requested flight file was not found. Upload a valid .bin or .tlog file to continue.'
+  }
+
+  return null
+}
+
 function navigateToFlight(flightId: string) {
   const normalizedFlightId = flightId.trim()
 
@@ -21,6 +31,7 @@ function navigateToFlight(flightId: string) {
 
   const url = new URL(window.location.href)
   url.searchParams.delete('flightid')
+  url.searchParams.delete('error')
   url.searchParams.set('flightId', normalizedFlightId)
   window.history.pushState({}, '', url)
   window.dispatchEvent(new PopStateEvent('popstate'))
@@ -28,10 +39,12 @@ function navigateToFlight(flightId: string) {
 
 function App() {
   const [flightId, setFlightId] = useState(() => getFlightIdFromLocation())
+  const [landingError, setLandingError] = useState<string | null>(() => getLandingErrorFromLocation())
 
   useEffect(() => {
     function syncFlightId() {
       setFlightId(getFlightIdFromLocation())
+      setLandingError(getLandingErrorFromLocation())
     }
 
     const searchParams = new URLSearchParams(window.location.search)
@@ -51,7 +64,7 @@ function App() {
   }, [])
 
   if (!flightId) {
-    return <LandingPage onOpenFlight={navigateToFlight} />
+    return <LandingPage onOpenFlight={navigateToFlight} initialError={landingError} />
   }
 
   return <DashboardPage />

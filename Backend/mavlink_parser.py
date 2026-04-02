@@ -41,7 +41,7 @@ import json
 import math
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import numpy as np
 import pandas as pd
@@ -52,6 +52,7 @@ from pymavlink import mavutil
 # Constants
 # ---------------------------------------------------------------------------
 EARTH_RADIUS = 6_371_000  # metres
+ProgressCallback = Callable[[float, str], None]
 
 
 # ---------------------------------------------------------------------------
@@ -328,7 +329,10 @@ def _message_time_seconds(message: Any) -> float | None:
     return None
 
 
-def parse_tlog(filepath: str) -> dict[str, Any]:
+def parse_tlog(
+    filepath: str,
+    progress_callback: ProgressCallback | None = None,
+) -> dict[str, Any]:
     """Parse a MAVLink telemetry log (.tlog) into the frontend flight schema."""
 
     global _tf_geodetic_to_ecef, _enu_origin_ecef, _enu_rotation
@@ -348,6 +352,9 @@ def parse_tlog(filepath: str) -> dict[str, Any]:
 
     last_mode_name: str | None = None
     last_mode_num: int | None = None
+
+    if progress_callback:
+        progress_callback(0.18, "Reading telemetry frames")
 
     while True:
         message = log.recv_match()
@@ -422,6 +429,9 @@ def parse_tlog(filepath: str) -> dict[str, Any]:
     if not gps_raw:
         raise ValueError("No GPS_RAW_INT samples found in telemetry log")
 
+    if progress_callback:
+        progress_callback(0.38, "Normalizing telemetry")
+
     t0 = min(all_times_s) if all_times_s else 0.0
 
     def normalize_times(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -458,6 +468,9 @@ def parse_tlog(filepath: str) -> dict[str, Any]:
         "lng": first_gps["lng"],
         "alt": first_gps["alt"],
     }
+
+    if progress_callback:
+        progress_callback(0.55, "Projecting flight path")
 
     gps_trajectory: list[dict[str, Any]] = []
     total_distance = 0.0
@@ -561,6 +574,9 @@ def parse_tlog(filepath: str) -> dict[str, Any]:
                 "gyr_z": round(float(row["gyr_z"]), 4),
             })
 
+    if progress_callback:
+        progress_callback(0.76, "Computing metrics")
+
     att_chart: list[dict[str, Any]] = []
     att_step = max(1, len(att_raw) // 500) if att_raw else 1
     for idx in range(0, len(att_raw), att_step):
@@ -600,6 +616,9 @@ def parse_tlog(filepath: str) -> dict[str, Any]:
         (event["message"] for event in events if "Ardu" in event["message"] or "PX4" in event["message"]),
         "MAVLink telemetry log",
     )
+
+    if progress_callback:
+        progress_callback(0.9, "Packaging telemetry data")
 
     return {
         "meta": {
@@ -661,11 +680,14 @@ def parse_tlog(filepath: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Main parser
 # ---------------------------------------------------------------------------
-def parse_flight_log(filepath: str) -> dict[str, Any]:
+def parse_flight_log(
+    filepath: str,
+    progress_callback: ProgressCallback | None = None,
+) -> dict[str, Any]:
     """Parse a supported flight log and return a structured JSON-ready dict."""
     suffix = Path(filepath).suffix.lower()
     if suffix == ".tlog":
-        return parse_tlog(filepath)
+        return parse_tlog(filepath, progress_callback=progress_callback)
 
     # Reset ENU transform for each new file (origin changes per flight)
     global _tf_geodetic_to_ecef, _enu_origin_ecef, _enu_rotation
@@ -674,6 +696,8 @@ def parse_flight_log(filepath: str) -> dict[str, Any]:
     _enu_rotation = None
 
     log = mavutil.mavlink_connection(filepath)
+    if progress_callback:
+        progress_callback(0.14, "Reading flight log")
 
     # ------------------------------------------------------------------
     # Pass 1: collect all messages into lists
@@ -777,6 +801,9 @@ def parse_flight_log(filepath: str) -> dict[str, Any]:
                 "vibe_y": m.VibeY, "vibe_z": m.VibeZ,
             })
 
+    if progress_callback:
+        progress_callback(0.34, "Normalizing sensor streams")
+
     # ------------------------------------------------------------------
     # Determine t0 and build DataFrames
     # ------------------------------------------------------------------
@@ -823,6 +850,9 @@ def parse_flight_log(filepath: str) -> dict[str, Any]:
     baro_rate = calc_rate(
         baro_df[baro_df["instance"] == 0]
     ) if not baro_df.empty else 0.0
+
+    if progress_callback:
+        progress_callback(0.48, "Projecting GPS coordinates")
 
     # ------------------------------------------------------------------
     # Origin for ENU conversion
@@ -911,6 +941,9 @@ def parse_flight_log(filepath: str) -> dict[str, Any]:
         }
         gps_trajectory.append(point)
 
+    if progress_callback:
+        progress_callback(0.62, "Building 3D trajectory")
+
     # ------------------------------------------------------------------
     # SIM trajectory with ENU (higher rate, use for 3D viz)
     # ------------------------------------------------------------------
@@ -929,6 +962,9 @@ def parse_flight_log(filepath: str) -> dict[str, Any]:
             "yaw": row["yaw"],
             "quat": [row["q1"], row["q2"], row["q3"], row["q4"]],
         })
+
+    if progress_callback:
+        progress_callback(0.74, "Integrating IMU data")
 
     # ------------------------------------------------------------------
     # IMU processing: acceleration magnitude + trapezoidal integration
@@ -969,6 +1005,9 @@ def parse_flight_log(filepath: str) -> dict[str, Any]:
                 "vel_total": round(float(vel_total[idx]), 3),
                 "acc_mag": round(float(acc_mag[idx]), 3),
             })
+
+    if progress_callback:
+        progress_callback(0.84, "Preparing charts and events")
 
     # ------------------------------------------------------------------
     # IMU raw (downsampled for charts)
@@ -1145,6 +1184,9 @@ def parse_flight_log(filepath: str) -> dict[str, Any]:
         "modes": modes,
         "parameters": parm_raw,
     }
+
+    if progress_callback:
+        progress_callback(0.92, "Finalizing parsed payload")
 
     return result
 

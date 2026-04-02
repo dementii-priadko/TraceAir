@@ -12,7 +12,17 @@ export const DEFAULT_FLIGHT_ID =
   'a2ed9650-0638-4597-8374-995d8e6660a4'
 
 export type UploadFlightResponse = {
+  job_id: string
+}
+
+export type UploadJobStatus = {
   id: string
+  filename: string
+  status: 'queued' | 'processing' | 'completed' | 'failed'
+  stage: string
+  progress: number
+  flight_id: string | null
+  error: string | null
 }
 
 async function getErrorMessage(
@@ -58,20 +68,56 @@ export function getFlightAnalysis(flightId: string): Promise<FlightAnalysis> {
   return fetchJson<FlightAnalysis>(`/api/flights/${flightId}/analysis`)
 }
 
-export async function uploadFlight(file: File): Promise<UploadFlightResponse> {
+export function getUploadStatus(jobId: string): Promise<UploadJobStatus> {
+  return fetchJson<UploadJobStatus>(`/api/uploads/${jobId}`)
+}
+
+export async function uploadFlight(
+  file: File,
+  onProgress?: (progress: number) => void,
+): Promise<UploadFlightResponse> {
   const formData = new FormData()
   formData.append('file', file)
 
-  const response = await fetch(`${API_BASE_URL}/api/upload`, {
-    method: 'POST',
-    body: formData,
+  return new Promise<UploadFlightResponse>((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('POST', `${API_BASE_URL}/api/upload`)
+    xhr.responseType = 'json'
+
+    xhr.upload.onprogress = (event) => {
+      if (!onProgress || !event.lengthComputable) {
+        return
+      }
+
+      onProgress(Math.round((event.loaded / event.total) * 100))
+    }
+
+    xhr.onerror = () => {
+      reject(new Error('Upload request failed'))
+    }
+
+    xhr.onload = async () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        const payload = xhr.response as UploadFlightResponse | null
+        if (!payload?.job_id) {
+          reject(new Error('Upload response is missing job id'))
+          return
+        }
+
+        onProgress?.(100)
+        resolve(payload)
+        return
+      }
+
+      const response = new Response(xhr.responseText, {
+        status: xhr.status,
+        headers: {
+          'content-type': xhr.getResponseHeader('content-type') || 'text/plain',
+        },
+      })
+      reject(new Error(await getErrorMessage(response, `Upload failed: ${xhr.status}`)))
+    }
+
+    xhr.send(formData)
   })
-
-  if (!response.ok) {
-    throw new Error(
-      await getErrorMessage(response, `Upload failed: ${response.status}`),
-    )
-  }
-
-  return (await response.json()) as UploadFlightResponse
 }

@@ -1,16 +1,28 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ChangeEvent } from 'react'
-import { uploadFlight } from '../services/flightService'
+import { useSmoothProgress } from '../hooks/useSmoothProgress'
+import { getUploadStatus, uploadFlight } from '../services/flightService'
+import { storeFlightLabel } from '../utils/flightLabels'
 
 export type LandingPageProps = {
   onOpenFlight: (flightId: string) => void
+  initialError?: string | null
 }
 
 export function LandingPage({
   onOpenFlight,
+  initialError = null,
 }: LandingPageProps) {
   const [uploading, setUploading] = useState(false)
-  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [submitError, setSubmitError] = useState<string | null>(initialError)
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [processingProgress, setProcessingProgress] = useState(0)
+  const [processingStage, setProcessingStage] = useState('')
+  const displayProcessingProgress = useSmoothProgress(processingProgress, uploading)
+
+  useEffect(() => {
+    setSubmitError(initialError)
+  }, [initialError])
 
   async function handleUpload(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
@@ -21,10 +33,37 @@ export function LandingPage({
 
     setUploading(true)
     setSubmitError(null)
+    setUploadProgress(0)
+    setProcessingProgress(0)
+    setProcessingStage('Uploading flight log')
 
     try {
-      const response = await uploadFlight(file)
-      onOpenFlight(response.id)
+      const response = await uploadFlight(file, setUploadProgress)
+      setProcessingStage('Upload complete, starting parser')
+      setProcessingProgress(10)
+
+      let attempts = 0
+      while (attempts < 600) {
+        const status = await getUploadStatus(response.job_id)
+        setProcessingStage(status.stage)
+        setProcessingProgress(status.progress)
+
+        if (status.status === 'completed' && status.flight_id) {
+          setProcessingProgress(100)
+          storeFlightLabel(status.flight_id, file.name)
+          onOpenFlight(status.flight_id)
+          return
+        }
+
+        if (status.status === 'failed') {
+          throw new Error(status.error || 'Flight processing failed')
+        }
+
+        await new Promise((resolve) => window.setTimeout(resolve, 700))
+        attempts += 1
+      }
+
+      throw new Error('Flight processing timed out')
     } catch (uploadRequestError) {
       setSubmitError(
         uploadRequestError instanceof Error
@@ -34,6 +73,9 @@ export function LandingPage({
     } finally {
       event.target.value = ''
       setUploading(false)
+      setUploadProgress(0)
+      setProcessingProgress(0)
+      setProcessingStage('')
     }
   }
 
@@ -105,6 +147,35 @@ export function LandingPage({
               </div>
             </label>
 
+            {uploading ? (
+              <div className="mt-4 space-y-3 border border-[rgba(207,127,69,0.22)] bg-[rgba(255,255,255,0.02)] px-4 py-4">
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between gap-3 font-mono text-[0.68rem] uppercase tracking-[0.18em] text-[var(--color-text-muted)]">
+                    <span>Upload</span>
+                    <span>{uploadProgress}%</span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-[rgba(255,255,255,0.06)]">
+                    <div
+                      className="h-full bg-[linear-gradient(90deg,rgba(207,127,69,0.82),rgba(231,183,140,0.92))] transition-[width] duration-300"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between gap-3 font-mono text-[0.68rem] uppercase tracking-[0.18em] text-[var(--color-text-muted)]">
+                    <span>{processingStage || 'Processing flight log'}</span>
+                    <span>{displayProcessingProgress}%</span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-[rgba(255,255,255,0.06)]">
+                    <div
+                      className="h-full bg-[linear-gradient(90deg,rgba(117,84,54,0.86),rgba(207,127,69,0.96))] transition-[width] duration-500"
+                      style={{ width: `${displayProcessingProgress}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </div>
         </section>
 

@@ -6,7 +6,6 @@ import { SectionCard } from '../layout/SectionCard'
 export type AnalysisPanelProps = {
   analysis: FlightAnalysis | null
   loading: boolean
-  source: 'api' | 'mock'
   flightId: string
   firmwareLabel: string
   fileLabel: string
@@ -15,7 +14,6 @@ export type AnalysisPanelProps = {
 export function AnalysisPanel({
   analysis,
   loading,
-  source,
   flightId,
   firmwareLabel,
   fileLabel,
@@ -24,8 +22,6 @@ export function AnalysisPanel({
 
   if (loading) {
     body = 'Loading backend analysis.'
-  } else if (source === 'mock' && !analysis) {
-    body = 'Backend unavailable. The dashboard is using local mock telemetry without backend analysis.'
   } else if (analysis) {
     body = analysis.summary
   }
