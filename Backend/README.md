@@ -1,16 +1,17 @@
 # TraceAir Backend
 
-This backend accepts ArduPilot `.BIN` flight logs, parses them into JSON, stores the parsed result on disk, and can generate a short LLM-based analysis for any saved flight.
+This backend accepts ArduPilot `.BIN` and `.tlog` flight logs, parses them into JSON, stores the parsed result on disk, and can generate a short LLM-based analysis for any saved flight.
 
 It is intentionally simple. There is no database, no auth, and no object storage layer. Everything is stored locally in the configured storage directory so the service is easy to run during development and easy to inspect when something goes wrong.
 
 ## What it does
 
-- `POST /api/upload` uploads a `.BIN` file, parses it, saves the parsed JSON, and returns a UUID.
+- `POST /api/upload` uploads a `.BIN` or `.tlog` file, starts an async processing job, and returns a `job_id`.
+- `GET /api/uploads/{job_id}` returns the current upload / parsing / analysis progress.
 - `GET /api/flights/{id}` returns the full parsed JSON for a previously uploaded flight.
 - `GET /api/flights/{id}/analysis` returns a Markdown analysis generated with Gemini.
 
-If the same `.BIN` file is uploaded twice, the backend does not create a duplicate flight record. It hashes the file contents with SHA-256, checks the local manifest, and returns the existing UUID if that hash has already been seen.
+If the same file is uploaded twice, the backend does not create a duplicate flight record. It hashes the file contents with SHA-256, checks the local manifest, and returns the existing UUID if that hash has already been seen.
 
 ## Storage layout
 
@@ -89,15 +90,42 @@ Response:
 
 ```json
 {
-  "id": "a1b2c3d4-..."
+  "job_id": "a1b2c3d4-..."
 }
 ```
 
 Notes:
 
 - the uploaded file is hashed before parsing
-- if that hash already exists in `storage/index.json`, the existing UUID is returned
+- parsing and AI analysis run in a background job
+- if that hash already exists in `storage/index.json`, the existing UUID is reused
 - invalid or empty uploads return `400`
+
+### `GET /api/uploads/{job_id}`
+
+Returns the current upload job status.
+
+Example:
+
+```bash
+curl http://127.0.0.1:8000/api/uploads/a1b2c3d4-...
+```
+
+Example response:
+
+```json
+{
+  "id": "a1b2c3d4-...",
+  "filename": "flight.tlog",
+  "status": "processing",
+  "stage": "Generating analysis",
+  "progress": 92,
+  "flight_id": null,
+  "error": null
+}
+```
+
+When the job finishes, `status` becomes `completed` and `flight_id` is populated.
 
 ### `GET /api/flights/{id}`
 
@@ -134,7 +162,7 @@ If `GEMINI_API_KEY` is not set, the endpoint returns `503`.
 
 ## Parser
 
-The parser lives in `mavlink_parser.py`. It reads ArduPilot DataFlash logs and produces a JSON structure with:
+The parser lives in `mavlink_parser.py`. It reads ArduPilot DataFlash logs and MAVLink telemetry logs and produces a JSON structure with:
 
 - metadata and firmware info
 - origin and sensor sampling details
@@ -150,3 +178,4 @@ Metric calculation notes:
 - `total_distance_m` is calculated from consecutive GPS fixes with the Haversine formula
 - `max_horizontal_speed_ms` and `max_vertical_speed_ms` are derived from IMU acceleration arrays via trapezoidal integration
 - when IMU data is unavailable, speed metrics fall back to GPS-derived estimates
+- WGS-84 coordinates are converted into a local ENU frame for 3D visualization

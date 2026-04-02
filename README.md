@@ -67,7 +67,7 @@ CHOKIDAR_USEPOLLING=true
 
 ## GitHub Actions Deploy
 
-The repository includes a GitHub Actions workflow at [`.github/workflows/deploy.yml`](/Users/dementii/Hackaton/TraceAir/.github/workflows/deploy.yml) that deploys on every push to `main` and also supports manual runs.
+The repository includes a GitHub Actions workflow at [`.github/workflows/deploy.yml`](./.github/workflows/deploy.yml) that deploys on every push to `main` and also supports manual runs.
 
 It syncs the repository to the server over SSH, writes the non-secret deployment env file on the server, and runs:
 
