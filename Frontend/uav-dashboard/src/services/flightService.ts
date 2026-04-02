@@ -1,11 +1,11 @@
 import type { FlightAnalysis, FlightLog } from '../types/flight'
 
-const DEFAULT_API_BASE_URL = 'http://127.0.0.1:8000'
-const DEV_PROXY_BASE_URL = ''
+const DEFAULT_API_BASE_URL = ''
+
+const rawApiBaseUrl = import.meta.env.VITE_API_BASE_URL
 
 export const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL?.trim() ||
-  (import.meta.env.DEV ? DEV_PROXY_BASE_URL : DEFAULT_API_BASE_URL)
+  rawApiBaseUrl !== undefined ? rawApiBaseUrl.trim() : DEFAULT_API_BASE_URL
 
 export const DEFAULT_FLIGHT_ID =
   import.meta.env.VITE_DEFAULT_FLIGHT_ID?.trim() ||

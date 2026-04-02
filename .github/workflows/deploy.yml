@@ -1,0 +1,84 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Configure SSH
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          set -eu
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "${DEPLOY_PORT:-22}" "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+
+      - name: Sync project files
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          set -eu
+          rsync -az --delete \
+            -e "ssh -i ~/.ssh/deploy_key -p ${DEPLOY_PORT:-22}" \
+            --exclude '.git' \
+            --exclude '.github' \
+            --exclude '.idea' \
+            --exclude '.venv' \
+            --exclude '.DS_Store' \
+            --exclude '__pycache__' \
+            --exclude 'Frontend/uav-dashboard/node_modules' \
+            ./ "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/"
+
+      - name: Deploy on server
+        env:
+          BACKEND_BIND_IP: ${{ vars.BACKEND_BIND_IP || '127.0.0.1' }}
+          BACKEND_PORT: ${{ vars.BACKEND_PORT || '8000' }}
+          CHOKIDAR_USEPOLLING: ${{ vars.CHOKIDAR_USEPOLLING || 'true' }}
+          DEPLOY_DOMAIN: ${{ vars.DEPLOY_DOMAIN || 'traceair.snufkink.com' }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          FRONTEND_BIND_IP: ${{ vars.FRONTEND_BIND_IP || '127.0.0.1' }}
+          FRONTEND_PORT: ${{ vars.FRONTEND_PORT || '8080' }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+          VITE_DEFAULT_FLIGHT_ID: ${{ vars.VITE_DEFAULT_FLIGHT_ID || 'a2ed9650-0638-4597-8374-995d8e6660a4' }}
+        run: |
+          set -eu
+          GEMINI_API_KEY_B64="$(printf '%s' "${GEMINI_API_KEY}" | base64)"
+          GEMINI_MODEL_B64="$(printf '%s' "${GEMINI_MODEL}" | base64)"
+          ssh -i ~/.ssh/deploy_key -p "${DEPLOY_PORT:-22}" "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            "DEPLOY_DOMAIN='${DEPLOY_DOMAIN}' \
+            DEPLOY_PATH='${DEPLOY_PATH}' \
+            BACKEND_BIND_IP='${BACKEND_BIND_IP}' \
+            BACKEND_PORT='${BACKEND_PORT}' \
+            FRONTEND_BIND_IP='${FRONTEND_BIND_IP}' \
+            FRONTEND_PORT='${FRONTEND_PORT}' \
+            CHOKIDAR_USEPOLLING='${CHOKIDAR_USEPOLLING}' \
+            VITE_DEFAULT_FLIGHT_ID='${VITE_DEFAULT_FLIGHT_ID}' \
+            GEMINI_API_KEY_B64='${GEMINI_API_KEY_B64}' \
+            GEMINI_MODEL_B64='${GEMINI_MODEL_B64}' \
+            bash '${DEPLOY_PATH}/deploy/deploy.sh'"

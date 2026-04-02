@@ -9,6 +9,7 @@ Built with:
 - Tailwind CSS
 - Recharts
 - Leaflet / React Leaflet
+- Docker / Docker Compose
 
 ## What It Does
 
@@ -42,9 +43,16 @@ Copy `.env.example` to `.env` if you want custom values.
 Available variables:
 
 ```bash
-VITE_API_BASE_URL=http://127.0.0.1:8000
+VITE_API_BASE_URL=
+VITE_DEV_PROXY_TARGET=http://127.0.0.1:8000
 VITE_DEFAULT_FLIGHT_ID=a2ed9650-0638-4597-8374-995d8e6660a4
 ```
+
+Variable notes:
+
+- `VITE_API_BASE_URL`: optional explicit API origin. Leave empty to use same-origin `/api` requests.
+- `VITE_DEV_PROXY_TARGET`: Vite dev proxy target for `/api` during development.
+- `VITE_DEFAULT_FLIGHT_ID`: default flight to open when no uploaded flight is selected.
 
 ## Install
 
