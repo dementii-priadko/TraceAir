@@ -77,11 +77,11 @@ docker compose --profile prod up --build -d
 
 Required GitHub repository secrets:
 
-- `DEPLOY_HOST`: `77.42.16.180`
-- `DEPLOY_USER`: `root`
-- `DEPLOY_PORT`: `22`
-- `DEPLOY_PATH`: `/opt/traceair`
-- `DEPLOY_SSH_KEY`: private key contents from `/Users/dementii/.ssh/personal_hetzner`
+- `DEPLOY_HOST`
+- `DEPLOY_USER`
+- `DEPLOY_PORT`
+- `DEPLOY_PATH`
+- `DEPLOY_SSH_KEY`
 
 Recommended GitHub repository variables:
 
@@ -90,7 +90,6 @@ Recommended GitHub repository variables:
 - `BACKEND_PORT`: `8000`
 - `FRONTEND_BIND_IP`: `127.0.0.1`
 - `FRONTEND_PORT`: `8080`
-- `VITE_DEFAULT_FLIGHT_ID`: `a2ed9650-0638-4597-8374-995d8e6660a4`
 - `CHOKIDAR_USEPOLLING`: `true`
 
 The Gemini key stays only on the server in:
