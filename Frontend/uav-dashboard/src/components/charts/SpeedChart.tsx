@@ -19,7 +19,7 @@ export function SpeedChart({ data }: SpeedChartProps) {
   return (
     <SectionCard
       title="Velocity"
-      description="Horizontal and vertical speed trends derived from GPS telemetry."
+      description="Horizontal and vertical speed trends from IMU trapezoidal integration, with GPS fallback."
     >
       <div className="h-64 sm:h-72">
         <ResponsiveContainer width="100%" height="100%">

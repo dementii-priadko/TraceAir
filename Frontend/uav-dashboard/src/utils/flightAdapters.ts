@@ -155,6 +155,14 @@ export function adaptAltitudeChartData(flight: FlightLog): AltitudeChartPoint[] 
 }
 
 export function adaptSpeedChartData(flight: FlightLog): SpeedChartPoint[] {
+  if (flight.imu.integrated_velocity.length > 0) {
+    return flight.imu.integrated_velocity.map((point) => ({
+      time_s: point.time_s,
+      horizontal_speed: Math.hypot(point.vel_x, point.vel_y),
+      vertical_speed: point.vel_z,
+    }))
+  }
+
   return flight.trajectory.gps.map((point) => ({
     time_s: point.time_s,
     horizontal_speed: point.h_speed,
