@@ -205,30 +205,101 @@ def trapezoidal_integrate(times: np.ndarray, values: np.ndarray) -> np.ndarray:
     return vel
 
 
+def interpolate_attitude(
+    sample_times: np.ndarray, attitude_records: list[dict[str, Any]]
+) -> tuple[np.ndarray, np.ndarray, np.ndarray] | None:
+    """Interpolate roll, pitch, yaw to the timestamps of IMU samples."""
+    if not attitude_records:
+        return None
+
+    attitude_times = np.array([float(record["time_s"]) for record in attitude_records], dtype=np.float64)
+    roll = np.array([float(record["roll"]) for record in attitude_records], dtype=np.float64)
+    pitch = np.array([float(record["pitch"]) for record in attitude_records], dtype=np.float64)
+    yaw = np.array([float(record["yaw"]) for record in attitude_records], dtype=np.float64)
+
+    if len(attitude_times) == 1:
+        return (
+            np.full_like(sample_times, roll[0], dtype=np.float64),
+            np.full_like(sample_times, pitch[0], dtype=np.float64),
+            np.full_like(sample_times, yaw[0], dtype=np.float64),
+        )
+
+    return (
+        np.interp(sample_times, attitude_times, roll),
+        np.interp(sample_times, attitude_times, pitch),
+        np.interp(sample_times, attitude_times, yaw),
+    )
+
+
+def rotate_body_accel_to_enu(
+    acc_x: np.ndarray,
+    acc_y: np.ndarray,
+    acc_z: np.ndarray,
+    roll_deg: np.ndarray,
+    pitch_deg: np.ndarray,
+    yaw_deg: np.ndarray,
+) -> np.ndarray:
+    """Rotate body-frame acceleration vectors into the local ENU frame."""
+    roll = np.radians(roll_deg)
+    pitch = np.radians(pitch_deg)
+    yaw = np.radians(yaw_deg)
+
+    cr, sr = np.cos(roll), np.sin(roll)
+    cp, sp = np.cos(pitch), np.sin(pitch)
+    cy, sy = np.cos(yaw), np.sin(yaw)
+
+    rotation = np.empty((len(acc_x), 3, 3), dtype=np.float64)
+    rotation[:, 0, 0] = cy * cp
+    rotation[:, 0, 1] = cy * sp * sr - sy * cr
+    rotation[:, 0, 2] = cy * sp * cr + sy * sr
+    rotation[:, 1, 0] = sy * cp
+    rotation[:, 1, 1] = sy * sp * sr + cy * cr
+    rotation[:, 1, 2] = sy * sp * cr - cy * sr
+    rotation[:, 2, 0] = -sp
+    rotation[:, 2, 1] = cp * sr
+    rotation[:, 2, 2] = cp * cr
+
+    body_accel = np.column_stack((acc_x, acc_y, acc_z))
+    return np.einsum("nij,nj->ni", rotation, body_accel)
+
+
 def integrate_velocity_components(
     times: np.ndarray,
     acc_x: np.ndarray,
     acc_y: np.ndarray,
     acc_z: np.ndarray,
+    attitude: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Derive velocity components from accelerometer samples.
 
-    We remove the average of the first stationary samples on each axis,
-    then integrate with the trapezoidal rule.
+    If attitude is available, acceleration is first rotated into ENU.
+    Then the average of the first stationary samples is removed in that
+    world frame before trapezoidal integration.
     """
     if len(times) == 0:
         empty = np.array([], dtype=np.float64)
         return empty, empty, empty
 
-    n_cal = min(50, len(times))
-    bias_x = float(np.mean(acc_x[:n_cal]))
-    bias_y = float(np.mean(acc_y[:n_cal]))
-    bias_z = float(np.mean(acc_z[:n_cal]))
+    if attitude is not None:
+        roll_deg, pitch_deg, yaw_deg = attitude
+        accel_components = rotate_body_accel_to_enu(acc_x, acc_y, acc_z, roll_deg, pitch_deg, yaw_deg)
+        comp_x = accel_components[:, 0]
+        comp_y = accel_components[:, 1]
+        comp_z = accel_components[:, 2]
+    else:
+        comp_x = acc_x
+        comp_y = acc_y
+        comp_z = acc_z
 
-    vel_x = trapezoidal_integrate(times, acc_x - bias_x)
-    vel_y = trapezoidal_integrate(times, acc_y - bias_y)
-    vel_z = trapezoidal_integrate(times, acc_z - bias_z)
+    n_cal = min(50, len(times))
+    bias_x = float(np.mean(comp_x[:n_cal]))
+    bias_y = float(np.mean(comp_y[:n_cal]))
+    bias_z = float(np.mean(comp_z[:n_cal]))
+
+    vel_x = trapezoidal_integrate(times, comp_x - bias_x)
+    vel_y = trapezoidal_integrate(times, comp_y - bias_y)
+    vel_z = trapezoidal_integrate(times, comp_z - bias_z)
     return vel_x, vel_y, vel_z
 
 
@@ -459,7 +530,10 @@ def parse_tlog(filepath: str) -> dict[str, Any]:
         acc_mag = np.sqrt(acc_x**2 + acc_y**2 + acc_z**2)
         max_accel = float(np.max(acc_mag))
 
-        vel_x, vel_y, vel_z = integrate_velocity_components(times_s, acc_x, acc_y, acc_z)
+        attitude = interpolate_attitude(times_s, att_raw)
+        vel_x, vel_y, vel_z = integrate_velocity_components(
+            times_s, acc_x, acc_y, acc_z, attitude=attitude
+        )
         vel_total = np.sqrt(vel_x**2 + vel_y**2 + vel_z**2)
         imu_max_h_speed, imu_max_v_speed = velocity_metrics_from_components(vel_x, vel_y, vel_z)
 
@@ -876,7 +950,10 @@ def parse_flight_log(filepath: str) -> dict[str, Any]:
         # Acceleration magnitude (includes gravity ~9.81 m/s²)
         acc_mag = np.sqrt(acc_x**2 + acc_y**2 + acc_z**2)
         max_accel = float(np.max(acc_mag))
-        vel_x, vel_y, vel_z = integrate_velocity_components(times_s, acc_x, acc_y, acc_z)
+        attitude = interpolate_attitude(times_s, att_raw)
+        vel_x, vel_y, vel_z = integrate_velocity_components(
+            times_s, acc_x, acc_y, acc_z, attitude=attitude
+        )
 
         vel_total = np.sqrt(vel_x**2 + vel_y**2 + vel_z**2)
         imu_max_h_speed, imu_max_v_speed = velocity_metrics_from_components(vel_x, vel_y, vel_z)
