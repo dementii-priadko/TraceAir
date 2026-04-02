@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { Line2 } from 'three/examples/jsm/lines/Line2.js'
 import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js'
@@ -18,9 +18,11 @@ export type ViewerProps = {
   frames: ViewerFrame[]
   stages: FlightStage[]
   events: FlightEvent[]
-  currentTime: number
-  onTimeChange: (time: number) => void
   className?: string
+}
+
+export type ViewerHandle = {
+  seekTo: (time: number) => void
 }
 
 type SceneHandles = {
@@ -290,16 +292,15 @@ function findParachuteTime(events: FlightEvent[], stages: FlightStage[]): number
 // ===========================================================================
 // Component
 // ===========================================================================
-export function Viewer({
+export const Viewer = forwardRef<ViewerHandle, ViewerProps>(function Viewer({
   frames,
   stages,
   events,
-  currentTime,
-  onTimeChange,
   className = '',
-}: ViewerProps) {
+}: ViewerProps, ref) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const sceneRef = useRef<SceneHandles | null>(null)
+  const [currentTime, setCurrentTime] = useState(frames[0]?.time_s ?? 0)
   const [tileMode, setTileMode] = useState<TileMode>('map')
 
   const sceneModel = useMemo(() => {
@@ -328,6 +329,16 @@ export function Viewer({
   const minTime = frames[0]?.time_s ?? 0
   const maxTime = frames.at(-1)?.time_s ?? 0
   const sliderStep = frames.length > 1 ? Math.max((maxTime - minTime) / 2000, 0.001) : 0.01
+
+  useEffect(() => {
+    setCurrentTime(frames[0]?.time_s ?? 0)
+  }, [frames])
+
+  useImperativeHandle(ref, () => ({
+    seekTo(time: number) {
+      setCurrentTime(clamp(time, minTime, maxTime))
+    },
+  }), [maxTime, minTime])
 
   // ---- Scene setup --------------------------------------------------------
   useEffect(() => {
@@ -543,7 +554,7 @@ export function Viewer({
             </div>
             <input
               type="range" min={minTime} max={maxTime} step={sliderStep} value={currentTime}
-              onChange={(e) => onTimeChange(Number(e.target.value))}
+              onChange={(e) => setCurrentTime(Number(e.target.value))}
               className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-[#1a2030] accent-[#cf7f45]"
             />
           </div>
@@ -586,4 +597,4 @@ export function Viewer({
       </div>
     </SectionCard>
   )
-}
+})

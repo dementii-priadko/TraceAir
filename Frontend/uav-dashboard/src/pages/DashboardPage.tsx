@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import { AnalysisPanel } from '../components/ai/AnalysisPanel'
 import { AltitudeChart } from '../components/charts/AltitudeChart'
@@ -7,6 +7,7 @@ import { WorldMapCard } from '../components/common/WorldMapCard'
 import { TimelinePanel } from '../components/events/TimelinePanel'
 import { SummaryCards } from '../components/summary/SummaryCards'
 import { Viewer } from '../components/viewer/Viewer'
+import type { ViewerHandle } from '../components/viewer/Viewer'
 import { mockAnalysis } from '../data/mockAnalysis'
 import flightData from '../data/mockFlight.json'
 import { getFlight, getFlightAnalysis, uploadFlight } from '../services/flightService'
@@ -38,9 +39,7 @@ export function DashboardPage() {
   const [exportOpen, setExportOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
-  const [currentViewerTime, setCurrentViewerTime] = useState(
-    mockFlight.trajectory.gps[0]?.time_s ?? 0,
-  )
+  const viewerRef = useRef<ViewerHandle | null>(null)
   const currentFlightId =
     new URLSearchParams(window.location.search).get('flightId')?.trim() || ''
 
@@ -64,7 +63,6 @@ export function DashboardPage() {
         setFlight(apiFlight)
         setAnalysis(apiAnalysis)
         setDataSource('api')
-        setCurrentViewerTime(apiFlight.trajectory.gps[0]?.time_s ?? 0)
       } catch (requestError) {
         if (abortController.signal.aborted) {
           return
@@ -73,7 +71,6 @@ export function DashboardPage() {
         setFlight(mockFlight)
         setAnalysis(mockAnalysis)
         setDataSource('mock')
-        setCurrentViewerTime(mockFlight.trajectory.gps[0]?.time_s ?? 0)
         setError(
           requestError instanceof Error
             ? requestError.message
@@ -137,6 +134,10 @@ export function DashboardPage() {
 
     exportFlightRawJson(flight, currentFlightId, firmwareLabel)
     setExportOpen(false)
+  }
+
+  function handleTimelineSelect(time_s: number) {
+    viewerRef.current?.seekTo(time_s)
   }
 
   const summaryMetrics = adaptSummaryMetrics(flight)
@@ -239,19 +240,17 @@ export function DashboardPage() {
         <section className="grid gap-4">
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(360px,1fr)]">
             <Viewer
+              ref={viewerRef}
               frames={viewerFrames}
               stages={flight.stages}
               events={flight.events}
-              currentTime={currentViewerTime}
-              onTimeChange={setCurrentViewerTime}
               className="h-full"
             />
             <div className="flex flex-col gap-3">
               <SpeedChart data={speedChartData} />
               <TimelinePanel
                 items={timelineItems}
-                currentTime={currentViewerTime}
-                onSelectTime={setCurrentViewerTime}
+                onSelectTime={handleTimelineSelect}
               />
             </div>
           </div>
