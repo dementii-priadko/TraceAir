@@ -259,6 +259,15 @@ poetry.toml
 # ruff
 .ruff_cache/
 
+### React / Vite ###
+node_modules/
+dist/
+dist-ssr/
+coverage/
+vite.svg
+*.tsbuildinfo
+*.local
+
 # LSP config files
 pyrightconfig.json
 
