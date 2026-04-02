@@ -69,7 +69,7 @@ CHOKIDAR_USEPOLLING=true
 
 The repository includes a GitHub Actions workflow at [`.github/workflows/deploy.yml`](/Users/dementii/Hackaton/TraceAir/.github/workflows/deploy.yml) that deploys on every push to `main` and also supports manual runs.
 
-It syncs the repository to the server over SSH, writes deployment env files on the server, and runs:
+It syncs the repository to the server over SSH, writes the non-secret deployment env file on the server, and runs:
 
 ```bash
 docker compose --profile prod up --build -d
@@ -82,7 +82,6 @@ Required GitHub repository secrets:
 - `DEPLOY_PORT`: `22`
 - `DEPLOY_PATH`: `/opt/traceair`
 - `DEPLOY_SSH_KEY`: private key contents from `/Users/dementii/.ssh/personal_hetzner`
-- `GEMINI_API_KEY`: backend Gemini key
 
 Recommended GitHub repository variables:
 
@@ -93,4 +92,11 @@ Recommended GitHub repository variables:
 - `FRONTEND_PORT`: `8080`
 - `VITE_DEFAULT_FLIGHT_ID`: `a2ed9650-0638-4597-8374-995d8e6660a4`
 - `CHOKIDAR_USEPOLLING`: `true`
-- `GEMINI_MODEL`: optional override such as `gemini-2.5-flash`
+
+The Gemini key stays only on the server in:
+
+```text
+/opt/traceair/Backend/.env
+```
+
+The deploy workflow does not read or overwrite that file. If you want to change `GEMINI_API_KEY` or `GEMINI_MODEL`, do it directly on the server.

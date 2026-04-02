@@ -63,13 +63,9 @@ jobs:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           FRONTEND_BIND_IP: ${{ vars.FRONTEND_BIND_IP || '127.0.0.1' }}
           FRONTEND_PORT: ${{ vars.FRONTEND_PORT || '8080' }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
           VITE_DEFAULT_FLIGHT_ID: ${{ vars.VITE_DEFAULT_FLIGHT_ID || 'a2ed9650-0638-4597-8374-995d8e6660a4' }}
         run: |
           set -eu
-          GEMINI_API_KEY_B64="$(printf '%s' "${GEMINI_API_KEY}" | base64)"
-          GEMINI_MODEL_B64="$(printf '%s' "${GEMINI_MODEL}" | base64)"
           ssh -i ~/.ssh/deploy_key -p "${DEPLOY_PORT:-22}" "${DEPLOY_USER}@${DEPLOY_HOST}" \
             "DEPLOY_DOMAIN='${DEPLOY_DOMAIN}' \
             DEPLOY_PATH='${DEPLOY_PATH}' \
@@ -79,6 +75,4 @@ jobs:
             FRONTEND_PORT='${FRONTEND_PORT}' \
             CHOKIDAR_USEPOLLING='${CHOKIDAR_USEPOLLING}' \
             VITE_DEFAULT_FLIGHT_ID='${VITE_DEFAULT_FLIGHT_ID}' \
-            GEMINI_API_KEY_B64='${GEMINI_API_KEY_B64}' \
-            GEMINI_MODEL_B64='${GEMINI_MODEL_B64}' \
             bash '${DEPLOY_PATH}/deploy/deploy.sh'"
