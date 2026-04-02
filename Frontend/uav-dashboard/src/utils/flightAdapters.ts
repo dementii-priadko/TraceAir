@@ -159,7 +159,7 @@ export function adaptSpeedChartData(flight: FlightLog): SpeedChartPoint[] {
     return flight.imu.integrated_velocity.map((point) => ({
       time_s: point.time_s,
       horizontal_speed: Math.hypot(point.vel_x, point.vel_y),
-      vertical_speed: point.vel_z,
+      vertical_speed: -point.vel_z,
     }))
   }
 
