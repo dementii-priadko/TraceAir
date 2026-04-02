@@ -205,11 +205,349 @@ def trapezoidal_integrate(times: np.ndarray, values: np.ndarray) -> np.ndarray:
     return vel
 
 
+def _message_time_seconds(message: Any) -> float | None:
+    if hasattr(message, "time_boot_ms"):
+        return float(message.time_boot_ms) / 1_000.0
+    if hasattr(message, "time_usec"):
+        return float(message.time_usec) / 1_000_000.0
+    if hasattr(message, "usec"):
+        return float(message.usec) / 1_000_000.0
+    if hasattr(message, "TimeUS"):
+        return float(message.TimeUS) / 1_000_000.0
+    return None
+
+
+def parse_tlog(filepath: str) -> dict[str, Any]:
+    """Parse a MAVLink telemetry log (.tlog) into the frontend flight schema."""
+
+    global _tf_geodetic_to_ecef, _enu_origin_ecef, _enu_rotation
+    _tf_geodetic_to_ecef = None
+    _enu_origin_ecef = None
+    _enu_rotation = None
+
+    log = mavutil.mavlink_connection(filepath)
+
+    gps_raw: list[dict[str, Any]] = []
+    imu_raw: list[dict[str, Any]] = []
+    att_raw: list[dict[str, Any]] = []
+    msg_raw: list[dict[str, Any]] = []
+    mode_raw: list[dict[str, Any]] = []
+    baro_raw: list[dict[str, Any]] = []
+    all_times_s: list[float] = []
+
+    last_mode_name: str | None = None
+    last_mode_num: int | None = None
+
+    while True:
+        message = log.recv_match()
+        if message is None:
+            break
+
+        message_type = message.get_type()
+        time_s = _message_time_seconds(message)
+        if time_s is not None:
+            all_times_s.append(time_s)
+
+        if message_type == "GPS_RAW_INT":
+            gps_raw.append({
+                "time_s_abs": time_s,
+                "status": int(getattr(message, "fix_type", 0)),
+                "lat": float(message.lat) / 1e7,
+                "lng": float(message.lon) / 1e7,
+                "alt": float(message.alt) / 1_000.0,
+                "spd": float(getattr(message, "vel", 0.0)) / 100.0,
+                "n_sats": int(getattr(message, "satellites_visible", 0)),
+            })
+        elif message_type == "RAW_IMU":
+            imu_raw.append({
+                "time_s_abs": time_s,
+                "instance": 0,
+                "gyr_x": float(message.xgyro) / 1_000.0,
+                "gyr_y": float(message.ygyro) / 1_000.0,
+                "gyr_z": float(message.zgyro) / 1_000.0,
+                "acc_x": float(message.xacc) * 9.80665 / 1_000.0,
+                "acc_y": float(message.yacc) * 9.80665 / 1_000.0,
+                "acc_z": float(message.zacc) * 9.80665 / 1_000.0,
+            })
+        elif message_type == "ATTITUDE":
+            roll_deg = math.degrees(float(message.roll))
+            pitch_deg = math.degrees(float(message.pitch))
+            yaw_deg = math.degrees(float(message.yaw))
+            att_raw.append({
+                "time_s_abs": time_s,
+                "roll": roll_deg,
+                "pitch": pitch_deg,
+                "yaw": yaw_deg,
+                "des_roll": roll_deg,
+                "des_pitch": pitch_deg,
+            })
+        elif message_type == "STATUSTEXT":
+            text = str(getattr(message, "text", "")).strip()
+            if text:
+                msg_raw.append({
+                    "time_s_abs": time_s,
+                    "message": text,
+                })
+        elif message_type == "HEARTBEAT":
+            mode_num = int(getattr(message, "custom_mode", 0))
+            mode_name = mavutil.mode_string_v10(message)
+            if mode_name != last_mode_name or mode_num != last_mode_num:
+                mode_raw.append({
+                    "time_s_abs": time_s,
+                    "mode_num": mode_num,
+                    "mode_name": mode_name,
+                })
+                last_mode_name = mode_name
+                last_mode_num = mode_num
+        elif message_type == "SCALED_PRESSURE":
+            baro_raw.append({
+                "time_s_abs": time_s,
+                "instance": 0,
+                "alt": 0.0,
+                "press": float(getattr(message, "press_abs", 0.0)) * 100.0,
+                "temp": float(getattr(message, "temperature", 0.0)) / 100.0,
+            })
+
+    if not gps_raw:
+        raise ValueError("No GPS_RAW_INT samples found in telemetry log")
+
+    t0 = min(all_times_s) if all_times_s else 0.0
+
+    def normalize_times(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        for record in records:
+            absolute_time = record.pop("time_s_abs", None)
+            record["time_s"] = round((absolute_time - t0), 4) if absolute_time is not None else 0.0
+        return records
+
+    gps_raw = normalize_times(gps_raw)
+    imu_raw = normalize_times(imu_raw)
+    att_raw = normalize_times(att_raw)
+    msg_raw = normalize_times(msg_raw)
+    mode_raw = normalize_times(mode_raw)
+    baro_raw = normalize_times(baro_raw)
+
+    gps_df = pd.DataFrame(gps_raw)
+    imu_df = pd.DataFrame(imu_raw)
+    baro_df = pd.DataFrame(baro_raw)
+
+    def calc_rate(df: pd.DataFrame) -> float:
+        if len(df) < 2 or "time_s" not in df:
+            return 0.0
+        dt = df["time_s"].diff().dropna()
+        median_dt = dt.median()
+        return round(1.0 / median_dt, 1) if median_dt > 0 else 0.0
+
+    gps_rate = calc_rate(gps_df)
+    imu_rate = calc_rate(imu_df)
+    baro_rate = calc_rate(baro_df)
+
+    first_gps = gps_raw[0]
+    origin = {
+        "lat": first_gps["lat"],
+        "lng": first_gps["lng"],
+        "alt": first_gps["alt"],
+    }
+
+    gps_trajectory: list[dict[str, Any]] = []
+    total_distance = 0.0
+    max_h_speed = 0.0
+    max_v_speed = 0.0
+    max_alt_gain = 0.0
+
+    for index, row in enumerate(gps_raw):
+        e, n, u = wgs84_to_enu(
+            row["lat"], row["lng"], row["alt"],
+            origin["lat"], origin["lng"], origin["alt"],
+        )
+
+        seg_dist = 0.0
+        h_speed = float(row.get("spd", 0.0))
+        v_speed = 0.0
+
+        if index > 0:
+            previous = gps_raw[index - 1]
+            seg_dist = haversine(previous["lat"], previous["lng"], row["lat"], row["lng"])
+            total_distance += seg_dist
+
+            dt = row["time_s"] - previous["time_s"]
+            if dt > 0:
+                if not h_speed:
+                    h_speed = seg_dist / dt
+                v_speed = (row["alt"] - previous["alt"]) / dt
+                max_h_speed = max(max_h_speed, abs(h_speed))
+                max_v_speed = max(max_v_speed, abs(v_speed))
+
+        alt_gain = row["alt"] - origin["alt"]
+        max_alt_gain = max(max_alt_gain, alt_gain)
+
+        gps_trajectory.append({
+            "time_s": row["time_s"],
+            "lat": row["lat"],
+            "lng": row["lng"],
+            "alt_msl": row["alt"],
+            "enu": {"e": e, "n": n, "u": u},
+            "h_speed": round(h_speed, 2),
+            "v_speed": round(v_speed, 2),
+            "seg_dist": round(seg_dist, 3),
+            "n_sats": row["n_sats"],
+        })
+
+    sim_trajectory = [
+        {
+            "time_s": point["time_s"],
+            "enu": point["enu"],
+            "alt_msl": point["alt_msl"],
+            "roll": 0.0,
+            "pitch": 0.0,
+            "yaw": 0.0,
+            "quat": [1.0, 0.0, 0.0, 0.0],
+        }
+        for point in gps_trajectory
+    ]
+
+    max_accel = 0.0
+    imu_velocity: list[dict[str, Any]] = []
+    imu_chart: list[dict[str, Any]] = []
+
+    if not imu_df.empty:
+        times_s = imu_df["time_s"].values
+        acc_x = imu_df["acc_x"].values
+        acc_y = imu_df["acc_y"].values
+        acc_z = imu_df["acc_z"].values
+        acc_mag = np.sqrt(acc_x**2 + acc_y**2 + acc_z**2)
+        max_accel = float(np.max(acc_mag))
+
+        n_cal = min(50, len(acc_z))
+        gravity_est = np.mean(acc_z[:n_cal])
+        acc_z_no_g = acc_z - gravity_est
+
+        vel_z = trapezoidal_integrate(times_s, acc_z_no_g)
+        vel_x = trapezoidal_integrate(times_s, acc_x)
+        vel_y = trapezoidal_integrate(times_s, acc_y)
+        vel_total = np.sqrt(vel_x**2 + vel_y**2 + vel_z**2)
+
+        velocity_step = max(1, len(times_s) // 500)
+        for idx in range(0, len(times_s), velocity_step):
+            imu_velocity.append({
+                "time_s": round(float(times_s[idx]), 4),
+                "vel_x": round(float(vel_x[idx]), 3),
+                "vel_y": round(float(vel_y[idx]), 3),
+                "vel_z": round(float(vel_z[idx]), 3),
+                "vel_total": round(float(vel_total[idx]), 3),
+                "acc_mag": round(float(acc_mag[idx]), 3),
+            })
+
+        imu_step = max(1, len(imu_raw) // 500)
+        for idx in range(0, len(imu_raw), imu_step):
+            row = imu_raw[idx]
+            imu_chart.append({
+                "time_s": round(float(row["time_s"]), 4),
+                "acc_x": round(float(row["acc_x"]), 4),
+                "acc_y": round(float(row["acc_y"]), 4),
+                "acc_z": round(float(row["acc_z"]), 4),
+                "gyr_x": round(float(row["gyr_x"]), 4),
+                "gyr_y": round(float(row["gyr_y"]), 4),
+                "gyr_z": round(float(row["gyr_z"]), 4),
+            })
+
+    att_chart: list[dict[str, Any]] = []
+    att_step = max(1, len(att_raw) // 500) if att_raw else 1
+    for idx in range(0, len(att_raw), att_step):
+        row = att_raw[idx]
+        att_chart.append({
+            "time_s": row["time_s"],
+            "roll": round(row["roll"], 2),
+            "pitch": round(row["pitch"], 2),
+            "yaw": round(row["yaw"], 2),
+            "des_roll": round(row["des_roll"], 2),
+            "des_pitch": round(row["des_pitch"], 2),
+        })
+
+    flight_duration = gps_trajectory[-1]["time_s"] - gps_trajectory[0]["time_s"] if gps_trajectory else 0.0
+
+    events = [
+        {"time_s": row["time_s"], "message": row["message"]}
+        for row in msg_raw
+    ]
+    modes = [
+        {
+            "time_s": row["time_s"],
+            "mode_num": row["mode_num"],
+            "mode_name": row["mode_name"],
+        }
+        for row in mode_raw
+    ]
+
+    firmware_message = next(
+        (event["message"] for event in events if "Ardu" in event["message"] or "PX4" in event["message"]),
+        "MAVLink telemetry log",
+    )
+
+    return {
+        "meta": {
+            "firmware": firmware_message,
+            "version": "tlog",
+            "git_hash": 0,
+            "total_messages": len(gps_raw) + len(imu_raw) + len(att_raw) + len(msg_raw) + len(mode_raw) + len(baro_raw),
+        },
+        "origin": origin,
+        "sensors": {
+            "gps": {
+                "rate_hz": gps_rate,
+                "n_samples": len(gps_raw),
+                "n_sats": gps_raw[0]["n_sats"] if gps_raw else 0,
+                "units": {"lat": "deg", "lng": "deg", "alt": "m MSL", "spd": "m/s"},
+            },
+            "imu": {
+                "rate_hz": imu_rate,
+                "n_samples": len(imu_raw),
+                "units": {"acc": "m/s²", "gyr": "rad/s"},
+            },
+            "baro": {
+                "rate_hz": baro_rate,
+                "n_samples": len(baro_raw),
+                "units": {"alt": "m", "press": "Pa", "temp": "°C"},
+            },
+        },
+        "metrics": {
+            "max_horizontal_speed_ms": round(max_h_speed, 2),
+            "max_vertical_speed_ms": round(max_v_speed, 2),
+            "max_acceleration_ms2": round(max_accel, 2),
+            "max_acceleration_g": round(max_accel / 9.80665, 2),
+            "max_altitude_gain_m": round(max_alt_gain, 2),
+            "total_distance_m": round(total_distance, 2),
+            "flight_duration_s": round(flight_duration, 2),
+            "apogee_msl_m": round(max((point["alt_msl"] for point in gps_trajectory), default=0.0), 2),
+        },
+        "trajectory": {
+            "gps": gps_trajectory,
+            "sim": sim_trajectory,
+        },
+        "imu": {
+            "raw_chart": imu_chart,
+            "integrated_velocity": imu_velocity,
+        },
+        "attitude": att_chart,
+        "pid": {
+            "roll": [],
+            "pitch": [],
+            "yaw": [],
+        },
+        "events": events,
+        "stages": [],
+        "modes": modes,
+        "parameters": {},
+    }
+
+
 # ---------------------------------------------------------------------------
 # Main parser
 # ---------------------------------------------------------------------------
-def parse_bin(filepath: str) -> dict[str, Any]:
-    """Parse an ArduPilot .BIN log and return structured JSON-ready dict."""
+def parse_flight_log(filepath: str) -> dict[str, Any]:
+    """Parse a supported flight log and return a structured JSON-ready dict."""
+    suffix = Path(filepath).suffix.lower()
+    if suffix == ".tlog":
+        return parse_tlog(filepath)
 
     # Reset ENU transform for each new file (origin changes per flight)
     global _tf_geodetic_to_ecef, _enu_origin_ecef, _enu_rotation
@@ -694,6 +1032,11 @@ def parse_bin(filepath: str) -> dict[str, Any]:
     }
 
     return result
+
+
+def parse_bin(filepath: str) -> dict[str, Any]:
+    """Backward-compatible alias for existing callers."""
+    return parse_flight_log(filepath)
 
 
 if __name__ == "__main__":

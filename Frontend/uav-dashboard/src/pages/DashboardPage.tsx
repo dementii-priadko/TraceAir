@@ -9,12 +9,7 @@ import { SummaryCards } from '../components/summary/SummaryCards'
 import { Viewer } from '../components/viewer/Viewer'
 import { mockAnalysis } from '../data/mockAnalysis'
 import flightData from '../data/mockFlight.json'
-import {
-  DEFAULT_FLIGHT_ID,
-  getFlight,
-  getFlightAnalysis,
-  uploadFlight,
-} from '../services/flightService'
+import { getFlight, getFlightAnalysis, uploadFlight } from '../services/flightService'
 import type { FlightAnalysis, FlightLog } from '../types/flight'
 import {
   adaptAltitudeChartData,
@@ -35,19 +30,19 @@ const mockFlight = flightData as unknown as FlightLog
 type DataSource = 'api' | 'mock'
 
 export function DashboardPage() {
-  const initialFlightId =
-    new URLSearchParams(window.location.search).get('flightId')?.trim() ||
-    DEFAULT_FLIGHT_ID
-
   const [flight, setFlight] = useState<FlightLog>(mockFlight)
   const [analysis, setAnalysis] = useState<FlightAnalysis | null>(mockAnalysis)
   const [dataSource, setDataSource] = useState<DataSource>('mock')
-  const [currentFlightId, setCurrentFlightId] = useState(initialFlightId)
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
+  const [currentViewerTime, setCurrentViewerTime] = useState(
+    mockFlight.trajectory.gps[0]?.time_s ?? 0,
+  )
+  const currentFlightId =
+    new URLSearchParams(window.location.search).get('flightId')?.trim() || ''
 
   useEffect(() => {
     const abortController = new AbortController()
@@ -69,6 +64,7 @@ export function DashboardPage() {
         setFlight(apiFlight)
         setAnalysis(apiAnalysis)
         setDataSource('api')
+        setCurrentViewerTime(apiFlight.trajectory.gps[0]?.time_s ?? 0)
       } catch (requestError) {
         if (abortController.signal.aborted) {
           return
@@ -77,6 +73,7 @@ export function DashboardPage() {
         setFlight(mockFlight)
         setAnalysis(mockAnalysis)
         setDataSource('mock')
+        setCurrentViewerTime(mockFlight.trajectory.gps[0]?.time_s ?? 0)
         setError(
           requestError instanceof Error
             ? requestError.message
@@ -112,7 +109,7 @@ export function DashboardPage() {
       const url = new URL(window.location.href)
       url.searchParams.set('flightId', nextFlightId)
       window.history.replaceState({}, '', url)
-      setCurrentFlightId(nextFlightId)
+      window.dispatchEvent(new PopStateEvent('popstate'))
     } catch (uploadRequestError) {
       setUploadError(
         uploadRequestError instanceof Error
@@ -216,12 +213,12 @@ export function DashboardPage() {
               <label className="inline-flex h-10 cursor-pointer items-center gap-2 border border-[rgba(207,127,69,0.42)] bg-[rgba(207,127,69,0.12)] px-4 text-[0.8rem] font-medium text-[var(--color-text-primary)] transition hover:bg-[rgba(207,127,69,0.18)]">
                 <input
                   type="file"
-                  accept=".bin,.BIN"
+                  accept=".bin,.BIN,.tlog,.TLOG"
                   className="sr-only"
                   onChange={handleUpload}
                   disabled={uploading}
                 />
-                {uploading ? 'Uploading…' : 'Upload .bin'}
+                {uploading ? 'Uploading…' : 'Upload .bin / .tlog'}
               </label>
             </div>
           </div>
@@ -241,10 +238,21 @@ export function DashboardPage() {
 
         <section className="grid gap-4">
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(360px,1fr)]">
-            <Viewer frames={viewerFrames} stages={flight.stages} events={flight.events} className="h-full" />
+            <Viewer
+              frames={viewerFrames}
+              stages={flight.stages}
+              events={flight.events}
+              currentTime={currentViewerTime}
+              onTimeChange={setCurrentViewerTime}
+              className="h-full"
+            />
             <div className="flex flex-col gap-3">
               <SpeedChart data={speedChartData} />
-              <TimelinePanel items={timelineItems} />
+              <TimelinePanel
+                items={timelineItems}
+                currentTime={currentViewerTime}
+                onSelectTime={setCurrentViewerTime}
+              />
             </div>
           </div>
 
@@ -257,6 +265,8 @@ export function DashboardPage() {
             analysis={analysis}
             loading={loading}
             source={dataSource}
+            flightId={currentFlightId}
+            firmwareLabel={firmwareLabel}
           />
         </section>
       </div>

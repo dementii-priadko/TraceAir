@@ -18,6 +18,8 @@ export type ViewerProps = {
   frames: ViewerFrame[]
   stages: FlightStage[]
   events: FlightEvent[]
+  currentTime: number
+  onTimeChange: (time: number) => void
   className?: string
 }
 
@@ -239,7 +241,7 @@ function createArrowheadDrone(): THREE.Group {
   const drone = new THREE.Group()
   const cone = new THREE.Mesh(new THREE.ConeGeometry(3, 10, 3), new THREE.MeshBasicMaterial({ color: '#ffffff' }))
   cone.rotation.x = Math.PI / 2; drone.add(cone)
-  drone.scale.setScalar(2.5)
+  drone.scale.setScalar(0.9)
   return drone
 }
 
@@ -288,10 +290,16 @@ function findParachuteTime(events: FlightEvent[], stages: FlightStage[]): number
 // ===========================================================================
 // Component
 // ===========================================================================
-export function Viewer({ frames, stages, events, className = '' }: ViewerProps) {
+export function Viewer({
+  frames,
+  stages,
+  events,
+  currentTime,
+  onTimeChange,
+  className = '',
+}: ViewerProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const sceneRef = useRef<SceneHandles | null>(null)
-  const [currentTime, setCurrentTime] = useState(frames[0]?.time_s ?? 0)
   const [tileMode, setTileMode] = useState<TileMode>('map')
 
   const sceneModel = useMemo(() => {
@@ -320,8 +328,6 @@ export function Viewer({ frames, stages, events, className = '' }: ViewerProps) 
   const minTime = frames[0]?.time_s ?? 0
   const maxTime = frames.at(-1)?.time_s ?? 0
   const sliderStep = frames.length > 1 ? Math.max((maxTime - minTime) / 2000, 0.001) : 0.01
-
-  useEffect(() => { setCurrentTime(frames[0]?.time_s ?? 0) }, [frames])
 
   // ---- Scene setup --------------------------------------------------------
   useEffect(() => {
@@ -537,7 +543,7 @@ export function Viewer({ frames, stages, events, className = '' }: ViewerProps) 
             </div>
             <input
               type="range" min={minTime} max={maxTime} step={sliderStep} value={currentTime}
-              onChange={(e) => setCurrentTime(Number(e.target.value))}
+              onChange={(e) => onTimeChange(Number(e.target.value))}
               className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-[#1a2030] accent-[#cf7f45]"
             />
           </div>

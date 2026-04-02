@@ -9,7 +9,7 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from google import genai
 
-from mavlink_parser import parse_bin
+from mavlink_parser import parse_flight_log
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -42,17 +42,48 @@ class FlightStore:
     def _analysis_path(self, flight_id: str) -> Path:
         return self.storage_dir / f"{flight_id}.analysis.json"
 
+    def _is_valid_flight_payload(self, payload: dict | None) -> bool:
+        if not isinstance(payload, dict):
+            return False
+
+        trajectory = payload.get("trajectory")
+        if not isinstance(trajectory, dict):
+            return False
+
+        gps_samples = trajectory.get("gps")
+        if isinstance(gps_samples, list) and gps_samples:
+            return True
+
+        imu = payload.get("imu")
+        if isinstance(imu, dict) and isinstance(imu.get("raw_chart"), list) and imu["raw_chart"]:
+            return True
+
+        attitude = payload.get("attitude")
+        return isinstance(attitude, list) and bool(attitude)
+
     def save_upload(self, filename: str, contents: bytes) -> str:
         file_hash = hashlib.sha256(contents).hexdigest()
 
         with self._lock:
             index = self._read_index()
             existing_id = index["hash_to_id"].get(file_hash)
-            if existing_id and self._json_path(existing_id).exists():
-                return existing_id
             if existing_id:
+                existing_json_path = self._json_path(existing_id)
+                existing_payload = None
+
+                if existing_json_path.exists():
+                    try:
+                        existing_payload = json.loads(existing_json_path.read_text(encoding="utf-8"))
+                    except Exception:
+                        existing_payload = None
+
+                if self._is_valid_flight_payload(existing_payload):
+                    return existing_id
+
                 index["hash_to_id"].pop(file_hash, None)
                 index["flights"].pop(existing_id, None)
+                existing_json_path.unlink(missing_ok=True)
+                self._analysis_path(existing_id).unlink(missing_ok=True)
 
             flight_id = str(uuid4())
             upload_suffix = Path(filename or "upload.bin").suffix or ".bin"
@@ -62,7 +93,7 @@ class FlightStore:
             try:
                 if not upload_path.exists():
                     upload_path.write_bytes(contents)
-                parsed = parse_bin(str(upload_path))
+                parsed = parse_flight_log(str(upload_path))
                 json_path.write_text(json.dumps(parsed, indent=2), encoding="utf-8")
             except Exception:
                 upload_path.unlink(missing_ok=True)
@@ -168,7 +199,7 @@ async def upload_flight(file: UploadFile = File(...)):
     try:
         flight_id = store.save_upload(file.filename or "upload.bin", contents)
     except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Failed to parse BIN file: {exc}") from exc
+        raise HTTPException(status_code=400, detail=f"Failed to parse flight log: {exc}") from exc
 
     return {"id": flight_id}
 

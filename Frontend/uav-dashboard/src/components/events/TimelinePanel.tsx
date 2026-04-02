@@ -4,9 +4,15 @@ import { SectionCard } from '../layout/SectionCard'
 
 export type TimelinePanelProps = {
   items: TimelineItem[]
+  currentTime: number
+  onSelectTime: (time_s: number) => void
 }
 
-export function TimelinePanel({ items }: TimelinePanelProps) {
+export function TimelinePanel({
+  items,
+  currentTime,
+  onSelectTime,
+}: TimelinePanelProps) {
   return (
     <SectionCard
       title="Timeline"
@@ -14,10 +20,19 @@ export function TimelinePanel({ items }: TimelinePanelProps) {
       contentClassName="max-h-[34rem] overflow-y-auto"
     >
       <div className="space-y-2">
-        {items.map((item) => (
-          <article
+        {items.map((item) => {
+          const isActive = Math.abs(item.time_s - currentTime) < 0.05
+
+          return (
+          <button
             key={item.id}
-            className="group flex items-start justify-between gap-4 rounded-[1rem] border border-transparent bg-[rgba(255,255,255,0.018)] px-4 py-3 transition hover:border-[var(--color-border)] hover:bg-[rgba(255,255,255,0.032)]"
+            type="button"
+            onClick={() => onSelectTime(item.time_s)}
+            className={`group flex w-full items-start justify-between gap-4 rounded-[1rem] border px-4 py-3 text-left transition ${
+              isActive
+                ? 'border-[rgba(207,127,69,0.34)] bg-[rgba(207,127,69,0.08)]'
+                : 'border-transparent bg-[rgba(255,255,255,0.018)] hover:border-[var(--color-border)] hover:bg-[rgba(255,255,255,0.032)]'
+            }`}
           >
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-3">
@@ -36,8 +51,8 @@ export function TimelinePanel({ items }: TimelinePanelProps) {
                 T+{formatNumber(item.time_s, 1)}s
               </span>
             </div>
-          </article>
-        ))}
+          </button>
+        )})}
       </div>
     </SectionCard>
   )
