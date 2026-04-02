@@ -1,9 +1,11 @@
 import type { FlightAnalysis, FlightLog } from '../types/flight'
 
 const DEFAULT_API_BASE_URL = 'http://127.0.0.1:8000'
+const DEV_PROXY_BASE_URL = ''
 
 export const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL?.trim() || DEFAULT_API_BASE_URL
+  import.meta.env.VITE_API_BASE_URL?.trim() ||
+  (import.meta.env.DEV ? DEV_PROXY_BASE_URL : DEFAULT_API_BASE_URL)
 
 export const DEFAULT_FLIGHT_ID =
   import.meta.env.VITE_DEFAULT_FLIGHT_ID?.trim() ||
@@ -13,11 +15,36 @@ export type UploadFlightResponse = {
   id: string
 }
 
+async function getErrorMessage(
+  response: Response,
+  fallbackMessage: string,
+): Promise<string> {
+  const contentType = response.headers.get('content-type') || ''
+
+  if (contentType.includes('application/json')) {
+    const payload = (await response.json()) as { detail?: string }
+
+    if (typeof payload.detail === 'string' && payload.detail.trim()) {
+      return payload.detail
+    }
+  } else {
+    const text = await response.text()
+
+    if (text.trim()) {
+      return text
+    }
+  }
+
+  return fallbackMessage
+}
+
 async function fetchJson<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`)
 
   if (!response.ok) {
-    throw new Error(`Request failed: ${response.status}`)
+    throw new Error(
+      await getErrorMessage(response, `Request failed: ${response.status}`),
+    )
   }
 
   return (await response.json()) as T
@@ -41,7 +68,9 @@ export async function uploadFlight(file: File): Promise<UploadFlightResponse> {
   })
 
   if (!response.ok) {
-    throw new Error(`Upload failed: ${response.status}`)
+    throw new Error(
+      await getErrorMessage(response, `Upload failed: ${response.status}`),
+    )
   }
 
   return (await response.json()) as UploadFlightResponse

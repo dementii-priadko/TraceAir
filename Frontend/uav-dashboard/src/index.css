@@ -97,7 +97,7 @@ body {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  transform: translate(-8px, -8px);
+  width: max-content;
 }
 
 .flight-map-marker__dot {

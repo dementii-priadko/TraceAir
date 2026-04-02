@@ -31,17 +31,13 @@ export function AnalysisPanel({
       description="Text summary returned by the backend for the selected flight."
     >
       <div className="space-y-3">
-        <div className="flex items-center justify-between gap-3">
-          {analysis ? (
-            <span className="text-xs text-slate-500">{analysis.model}</span>
-          ) : <span />}
-        </div>
-        <div className="rounded-lg border border-slate-900 bg-[#070c15] px-3 py-3">
-          <div
-            className="markdown-body max-h-72 overflow-auto text-sm leading-6 text-slate-300"
-            dangerouslySetInnerHTML={{ __html: renderedBody }}
-          />
-        </div>
+        {analysis ? (
+          <div className="text-xs text-slate-500">{analysis.model}</div>
+        ) : null}
+        <div
+          className="markdown-body text-sm leading-6 text-slate-300"
+          dangerouslySetInnerHTML={{ __html: renderedBody }}
+        />
       </div>
     </SectionCard>
   )

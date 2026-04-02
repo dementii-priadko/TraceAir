@@ -6,7 +6,7 @@ import { SpeedChart } from '../components/charts/SpeedChart'
 import { WorldMapCard } from '../components/common/WorldMapCard'
 import { TimelinePanel } from '../components/events/TimelinePanel'
 import { SummaryCards } from '../components/summary/SummaryCards'
-import { ViewerPlaceholder } from '../components/viewer/ViewerPlaceholder'
+import { Viewer } from '../components/viewer/Viewer'
 import { mockAnalysis } from '../data/mockAnalysis'
 import flightData from '../data/mockFlight.json'
 import {
@@ -240,7 +240,7 @@ export function DashboardPage() {
 
         <section className="grid gap-4">
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(360px,1fr)]">
-            <ViewerPlaceholder frames={viewerFrames} className="h-full" />
+            <Viewer frames={viewerFrames} stages={flight.stages} events={flight.events} className="h-full" />
             <div className="space-y-4">
               <SpeedChart data={speedChartData} />
               <TimelinePanel items={timelineItems} />

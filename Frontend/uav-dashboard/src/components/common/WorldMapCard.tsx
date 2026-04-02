@@ -7,11 +7,11 @@ import {
   TileLayer,
   useMap,
 } from 'react-leaflet'
-import type { WorldMapPoint } from '../../utils/flightAdapters'
+import type { WorldMapData } from '../../utils/flightAdapters'
 import { SectionCard } from '../layout/SectionCard'
 
 export type WorldMapCardProps = {
-  points: WorldMapPoint[]
+  points: WorldMapData
 }
 
 type MapStyle = 'osm' | 'satellite'
@@ -41,13 +41,13 @@ function createMarkerIcon(label: string, tone: 'start' | 'end') {
         <span class="flight-map-marker__label">${label}</span>
       </div>
     `,
-    iconSize: [96, 24],
-    iconAnchor: [12, 12],
+    iconSize: [120, 24],
+    iconAnchor: [6, 6],
   })
 }
 
 type FitToPointsProps = {
-  points: WorldMapPoint[]
+  points: Array<[number, number]>
 }
 
 function FitToPoints({ points }: FitToPointsProps) {
@@ -58,7 +58,7 @@ function FitToPoints({ points }: FitToPointsProps) {
       return
     }
 
-    const bounds = latLngBounds(points.map((point) => [point.lat, point.lng]))
+    const bounds = latLngBounds(points)
     map.fitBounds(bounds, {
       padding: [48, 48],
       maxZoom: points.length === 1 ? 8 : 12,
@@ -69,7 +69,7 @@ function FitToPoints({ points }: FitToPointsProps) {
 }
 
 export function WorldMapCard({ points }: WorldMapCardProps) {
-  const [startPoint, endPoint] = points
+  const { route, startPoint, endPoint } = points
   const [mapStyle, setMapStyle] = useState<MapStyle>('osm')
   const activeLayer = tileLayers[mapStyle]
   const startIcon = useMemo(() => createMarkerIcon('Start', 'start'), [])
@@ -114,17 +114,13 @@ export function WorldMapCard({ points }: WorldMapCardProps) {
           className="h-72 w-full"
         >
           <TileLayer attribution={activeLayer.attribution} url={activeLayer.url} />
-          <FitToPoints points={points} />
+          <FitToPoints points={route} />
           <Polyline
-            positions={[
-              [startPoint.lat, startPoint.lng],
-              [endPoint.lat, endPoint.lng],
-            ]}
+            positions={route}
             pathOptions={{
               color: '#7dd3fc',
-              weight: 2,
-              opacity: 0.75,
-              dashArray: '8 8',
+              weight: 3,
+              opacity: 0.9,
             }}
           />
           <Marker position={[startPoint.lat, startPoint.lng]} icon={startIcon} />

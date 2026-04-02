@@ -4,7 +4,6 @@ import type {
   FlightMode,
   FlightStage,
   IntegratedVelocityPoint,
-  SimTrajectoryPoint,
 } from '../types/flight'
 import {
   formatAcceleration,
@@ -75,13 +74,11 @@ export type ViewerFrame = {
     y: number
     z: number
   }
+  lat: number
+  lng: number
   altitude_msl: number
-  rotation: {
-    roll: number
-    pitch: number
-    yaw: number
-  }
-  quaternion: SimTrajectoryPoint['quat']
+  horizontal_speed: number
+  vertical_speed: number
 }
 
 export type WorldMapPoint = {
@@ -89,6 +86,12 @@ export type WorldMapPoint = {
   label: string
   lat: number
   lng: number
+}
+
+export type WorldMapData = {
+  route: Array<[number, number]>
+  startPoint: WorldMapPoint
+  endPoint: WorldMapPoint
 }
 
 export function adaptSummaryMetrics(flight: FlightLog): SummaryMetric[] {
@@ -207,33 +210,40 @@ export function adaptTimelineItems(flight: FlightLog): TimelineItem[] {
 }
 
 export function adaptViewerFrames(flight: FlightLog): ViewerFrame[] {
-  return flight.trajectory.sim.map((point) => ({
+  return flight.trajectory.gps.map((point) => ({
     time_s: point.time_s,
     position: {
       x: point.enu.e,
-      y: point.enu.n,
-      z: point.enu.u,
+      y: point.enu.u,
+      z: point.enu.n,
     },
+    lat: point.lat,
+    lng: point.lng,
     altitude_msl: point.alt_msl,
-    rotation: {
-      roll: point.roll,
-      pitch: point.pitch,
-      yaw: point.yaw,
-    },
-    quaternion: point.quat,
+    horizontal_speed: point.h_speed,
+    vertical_speed: point.v_speed,
   }))
 }
 
-export function adaptWorldMapPoints(flight: FlightLog): WorldMapPoint[] {
-  const firstGpsPoint = flight.trajectory.gps.at(0)
-  const lastGpsPoint = flight.trajectory.gps.at(-1)
+export function adaptWorldMapPoints(flight: FlightLog): WorldMapData {
+  const route = flight.trajectory.gps
+    .filter((point) =>
+      Number.isFinite(point.lat) &&
+      Number.isFinite(point.lng) &&
+      Math.abs(point.lat) <= 90 &&
+      Math.abs(point.lng) <= 180,
+    )
+    .map((point) => [point.lat, point.lng] as [number, number])
 
-  const startPoint = firstGpsPoint
+  const firstRoutePoint = route.at(0)
+  const lastRoutePoint = route.at(-1)
+
+  const startPoint = firstRoutePoint
     ? {
         id: 'start',
         label: 'Start',
-        lat: firstGpsPoint.lat,
-        lng: firstGpsPoint.lng,
+        lat: firstRoutePoint[0],
+        lng: firstRoutePoint[1],
       }
     : {
         id: 'start',
@@ -242,12 +252,12 @@ export function adaptWorldMapPoints(flight: FlightLog): WorldMapPoint[] {
         lng: flight.origin.lng,
       }
 
-  const endPoint = lastGpsPoint
+  const endPoint = lastRoutePoint
     ? {
         id: 'end',
         label: 'End',
-        lat: lastGpsPoint.lat,
-        lng: lastGpsPoint.lng,
+        lat: lastRoutePoint[0],
+        lng: lastRoutePoint[1],
       }
     : {
         id: 'end',
@@ -256,7 +266,11 @@ export function adaptWorldMapPoints(flight: FlightLog): WorldMapPoint[] {
         lng: flight.origin.lng,
       }
 
-  return [startPoint, endPoint]
+  return {
+    route: route.length > 0 ? route : [[flight.origin.lat, flight.origin.lng]],
+    startPoint,
+    endPoint,
+  }
 }
 
 function adaptIntegratedVelocityPoint(
