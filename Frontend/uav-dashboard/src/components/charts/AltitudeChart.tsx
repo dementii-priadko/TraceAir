@@ -23,7 +23,7 @@ export function AltitudeChart({ data, className = '' }: AltitudeChartProps) {
       description="Altitude above mean sea level sampled from the GPS track."
       className={className}
     >
-      <div className="h-72">
+      <div className="h-64 sm:h-72">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data}>
             <defs>
