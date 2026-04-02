@@ -47,6 +47,8 @@ jobs:
             --exclude '.venv' \
             --exclude '.DS_Store' \
             --exclude '__pycache__' \
+            --exclude '.env' \
+            --exclude 'Backend/.env' \
             --exclude 'Frontend/uav-dashboard/node_modules' \
             ./ "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/"
 
