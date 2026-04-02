@@ -182,6 +182,15 @@ export function DashboardPage() {
     viewerRef.current?.seekTo(time_s)
   }
 
+  function handleNavigateHome() {
+    const url = new URL(window.location.href)
+    url.searchParams.delete('flightId')
+    url.searchParams.delete('flightid')
+    url.searchParams.delete('error')
+    window.history.pushState({}, '', url)
+    window.dispatchEvent(new PopStateEvent('popstate'))
+  }
+
   const summaryMetrics = flight ? adaptSummaryMetrics(flight) : []
   const altitudeChartData = flight ? adaptAltitudeChartData(flight) : []
   const speedChartData = flight ? adaptSpeedChartData(flight) : []
@@ -204,6 +213,23 @@ export function DashboardPage() {
           <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,rgba(207,127,69,0.85),transparent)]" />
           <div className="pointer-events-none absolute right-[-8rem] top-[-8rem] h-64 w-64 rounded-full bg-[rgba(207,127,69,0.08)] blur-3xl" />
           <div className="pointer-events-none absolute bottom-[-6rem] left-[12%] h-40 w-40 rounded-full bg-[rgba(117,84,54,0.1)] blur-3xl" />
+          <button
+            type="button"
+            onClick={handleNavigateHome}
+            className="relative mb-5 inline-flex items-center gap-3 border border-[rgba(207,127,69,0.32)] bg-[rgba(10,12,15,0.28)] px-3 py-2 text-left transition hover:border-[rgba(207,127,69,0.54)] hover:bg-[rgba(10,12,15,0.38)]"
+          >
+            <span className="flex h-9 w-9 items-center justify-center border border-[rgba(207,127,69,0.35)] bg-[rgba(207,127,69,0.1)] font-mono text-[0.82rem] font-semibold text-[var(--color-accent)]">
+              TA
+            </span>
+            <span>
+              <span className="block font-mono text-[0.68rem] uppercase tracking-[0.24em] text-[var(--color-accent)]">
+                TraceAir
+              </span>
+              <span className="mt-1 block text-[0.74rem] text-[var(--color-text-secondary)]">
+                Main page
+              </span>
+            </span>
+          </button>
           <div className="relative grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_auto] xl:items-end">
             <div className="space-y-4">
               <div className="space-y-3">
