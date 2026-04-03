@@ -224,18 +224,7 @@ export function adaptTimelineItems(flight: FlightLog): TimelineItem[] {
 }
 
 export function adaptViewerFrames(flight: FlightLog): ViewerFrame[] {
-  const hasCompleteSimFrames = flight.trajectory.sim.every(
-    (point) =>
-      Number.isFinite(point.lat) &&
-      Number.isFinite(point.lng) &&
-      Number.isFinite(point.h_speed) &&
-      Number.isFinite(point.v_speed),
-  )
-
-  const source =
-    flight.trajectory.sim.length > 0 && hasCompleteSimFrames
-      ? flight.trajectory.sim
-      : flight.trajectory.gps
+  const source = flight.trajectory.gps
 
   return source.map((point) => ({
     time_s: point.time_s,
