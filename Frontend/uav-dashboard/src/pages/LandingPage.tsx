@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { ChangeEvent } from 'react'
+import type { ChangeEvent, DragEvent } from 'react'
 import { useSmoothProgress } from '../hooks/useSmoothProgress'
 import { getUploadStatus, uploadFlight } from '../services/flightService'
 import { storeFlightLabel } from '../utils/flightLabels'
@@ -14,6 +14,7 @@ export function LandingPage({
   initialError = null,
 }: LandingPageProps) {
   const [uploading, setUploading] = useState(false)
+  const [isDragActive, setIsDragActive] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(initialError)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [processingProgress, setProcessingProgress] = useState(0)
@@ -24,14 +25,27 @@ export function LandingPage({
     setSubmitError(initialError)
   }, [initialError])
 
-  async function handleUpload(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
+  useEffect(() => {
+    function preventBrowserDrop(event: globalThis.DragEvent) {
+      event.preventDefault()
+    }
 
+    window.addEventListener('dragover', preventBrowserDrop)
+    window.addEventListener('drop', preventBrowserDrop)
+
+    return () => {
+      window.removeEventListener('dragover', preventBrowserDrop)
+      window.removeEventListener('drop', preventBrowserDrop)
+    }
+  }, [])
+
+  async function handleUpload(file: File) {
     if (!file) {
       return
     }
 
     setUploading(true)
+    setIsDragActive(false)
     setSubmitError(null)
     setUploadProgress(0)
     setProcessingProgress(0)
@@ -71,12 +85,63 @@ export function LandingPage({
           : 'Upload request failed',
       )
     } finally {
-      event.target.value = ''
       setUploading(false)
       setUploadProgress(0)
       setProcessingProgress(0)
       setProcessingStage('')
     }
+  }
+
+  async function handleFileInputChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+
+    if (!file) {
+      return
+    }
+
+    await handleUpload(file)
+  }
+
+  function handleDragEnter(event: DragEvent<HTMLElement>) {
+    event.preventDefault()
+    if (!uploading) {
+      setIsDragActive(true)
+    }
+  }
+
+  function handleDragOver(event: DragEvent<HTMLElement>) {
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'copy'
+    if (!uploading) {
+      setIsDragActive(true)
+    }
+  }
+
+  function handleDragLeave(event: DragEvent<HTMLElement>) {
+    event.preventDefault()
+
+    if (event.currentTarget.contains(event.relatedTarget as Node | null)) {
+      return
+    }
+
+    setIsDragActive(false)
+  }
+
+  async function handleDrop(event: DragEvent<HTMLElement>) {
+    event.preventDefault()
+    setIsDragActive(false)
+
+    if (uploading) {
+      return
+    }
+
+    const file = event.dataTransfer.files?.[0]
+    if (!file) {
+      return
+    }
+
+    await handleUpload(file)
   }
 
   return (
@@ -125,12 +190,22 @@ export function LandingPage({
           </div>
 
           <div className="px-4 pb-4 sm:px-7 sm:pb-7">
-            <label className="group block cursor-pointer border border-[rgba(207,127,69,0.34)] bg-[rgba(10,12,15,0.96)] transition hover:border-[rgba(207,127,69,0.52)]">
+            <label
+              className={`group block cursor-pointer border bg-[rgba(10,12,15,0.96)] transition ${
+                isDragActive
+                  ? 'border-[rgba(231,183,140,0.88)] shadow-[0_0_0_1px_rgba(231,183,140,0.42)_inset]'
+                  : 'border-[rgba(207,127,69,0.34)] hover:border-[rgba(207,127,69,0.52)]'
+              }`}
+              onDragEnter={handleDragEnter}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
               <input
                 type="file"
                 accept=".bin,.BIN,.tlog,.TLOG"
                 className="sr-only"
-                onChange={handleUpload}
+                onChange={handleFileInputChange}
                 disabled={uploading}
               />
 
@@ -138,7 +213,9 @@ export function LandingPage({
                 <p className="font-mono text-[0.78rem] leading-6 text-[var(--color-accent)] sm:text-[0.9rem]">
                   {uploading
                     ? 'Processing mission log...'
-                    : 'Drop a flight log here or click to select'}
+                    : isDragActive
+                      ? 'Release to upload flight log'
+                      : 'Drop a flight log here or click to select'}
                 </p>
 
                 <div className="mt-5 inline-flex h-11 items-center justify-center border border-[rgba(207,127,69,0.35)] bg-[rgba(207,127,69,0.12)] px-5 font-mono text-[0.74rem] font-semibold uppercase tracking-[0.12em] text-[var(--color-text-primary)] sm:mt-6 sm:text-[0.82rem] sm:tracking-[0.14em]">
