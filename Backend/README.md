@@ -4,6 +4,15 @@ This backend accepts ArduPilot `.BIN` and `.tlog` flight logs, parses them into 
 
 It is intentionally simple. There is no database, no auth, and no object storage layer. Everything is stored locally in the configured storage directory so the service is easy to run during development and easy to inspect when something goes wrong.
 
+## Project structure
+
+- `main.py` is the ASGI entrypoint used by `uvicorn`.
+- `traceair_backend/app.py` wires FastAPI, middleware, routes, and the async upload workflow.
+- `traceair_backend/stores.py` contains local persistence for flights and in-memory upload job tracking.
+- `traceair_backend/analysis.py` contains Gemini prompt construction and analysis generation.
+- `traceair_backend/config.py` contains environment-based runtime paths and model configuration.
+- `mavlink_parser.py` remains the flight log parser and JSON builder.
+
 ## What it does
 
 - `POST /api/upload` uploads a `.BIN` or `.tlog` file, starts an async processing job, and returns a `job_id`.
